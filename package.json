@@ -9,7 +9,7 @@
     "lint": "next lint",
     "prepare": "husky install"
   },
-    "lint-staged": {
+  "lint-staged": {
     "**/*.{js,ts,jsx,tsx}": [
       "next lint --fix --file"
     ]
@@ -20,10 +20,10 @@
     "framer-motion": "^12.23.25",
     "laravel-echo": "^2.1.6",
     "lucide-react": "^0.556.0",
-    "next": "15.4.2",
+    "next": "^16.0.7",
     "pusher-js": "^8.4.0",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "react-leaflet": "^5.0.0",
     "uuid": "^11.1.0"
   },
