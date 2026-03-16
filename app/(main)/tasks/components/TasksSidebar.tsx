@@ -5,7 +5,6 @@ import {
   FileText,
   Download,
   Trash2,
-  StickyNote,
   ListTodo,
   Megaphone,
   Music,
@@ -17,8 +16,8 @@ import {
   Hash,
   Check,
   X,
-  // [FIX] Import tipe LucideIcon
   LucideIcon,
+  Kanban,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -27,13 +26,12 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import CreateWorkspacePopover from "./CreateWorkspacePopover";
-import ItemActionMenu from "./ItemActionMenu";
+import CreateWorkspacePopover from "../../notes/components/CreateWorkspacePopover";
+import ItemActionMenu from "../../notes/components/ItemActionMenu";
 
-// [FIX] Gunakan Record<string, LucideIcon>
-const DEFAULT_WORKSPACE_ICONS: Record<string, LucideIcon> = {
-  Notes: StickyNote,
+const DEFAULT_PROJECT_ICONS: Record<string, LucideIcon> = {
   Tasks: ListTodo,
+  Projects: Kanban,
   Announcements: Megaphone,
   Music: Music,
   Questions: HelpCircle,
@@ -42,56 +40,47 @@ const DEFAULT_WORKSPACE_ICONS: Record<string, LucideIcon> = {
 };
 
 const mainMenu = [
-  { label: "Templates", icon: FileText },
-  { label: "Import", icon: Download },
+  { label: "Tasks", icon: ListTodo },
+  { label: "Archive", icon: Download },
   { label: "Trash", icon: Trash2 },
 ];
 
-type NotesSidebarProps = {
-  // [FIX] Ganti any dengan LucideIcon
+type TasksSidebarProps = {
   folders: { name: string; icon: LucideIcon }[];
   activeFolder: string | null;
-  activeWorkspace: string;
-  workspaces: string[];
-  // [FIX] Ganti any dengan LucideIcon
+  activeProject: string;
+  projects: string[];
   customIcons: Record<string, LucideIcon>;
   onFolderSelect: (folder: string) => void;
-  onWorkspaceSelect: (ws: string) => void;
+  onProjectSelect: (project: string) => void;
   onCreateFolder: (name: string) => void;
-  // [FIX] Ganti any dengan LucideIcon
-  onCreateWorkspace: (name: string, icon: LucideIcon) => void;
-  // Workspace Actions
-  onRenameWorkspace: (oldName: string, newName: string) => void;
-  onDeleteWorkspace: (wsName: string) => void;
-  // Folder Actions
+  onCreateProject: (name: string, icon: LucideIcon) => void;
+  onRenameProject: (oldName: string, newName: string) => void;
+  onDeleteProject: (projectName: string) => void;
   onRenameFolder?: (oldName: string, newName: string) => void;
   onDeleteFolder?: (folderName: string) => void;
 };
 
-export default function NotesSidebar({
+export default function TasksSidebar({
   folders,
   activeFolder,
-  activeWorkspace,
-  workspaces,
+  activeProject,
+  projects,
   customIcons,
   onFolderSelect,
-  onWorkspaceSelect,
+  onProjectSelect,
   onCreateFolder,
-  onCreateWorkspace,
-  onRenameWorkspace,
-  onDeleteWorkspace,
+  onCreateProject,
+  onRenameProject,
+  onDeleteProject,
   onRenameFolder = () => {},
   onDeleteFolder = () => {},
-}: NotesSidebarProps) {
-  const [activeMain, setActiveMain] = useState<string>("");
-
-  // State untuk Folder Popover
+}: TasksSidebarProps) {
+  const [activeMain, setActiveMain] = useState<string>("Tasks");
   const [folderPopoverOpen, setFolderPopoverOpen] = useState(false);
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-
-  // --- [BARU] State untuk Workspace Popover ---
-  const [wsPopoverOpen, setWsPopoverOpen] = useState(false);
+  const [projectPopoverOpen, setProjectPopoverOpen] = useState(false);
 
   const displayFolderName = activeFolder || "Select Folder";
 
@@ -116,11 +105,11 @@ export default function NotesSidebar({
           }}
         >
           <PopoverTrigger asChild>
-            <button className="flex items-center gap-2 px-5 py-6 w-full hover:bg-slate-50 transition">
+            <button className="flex items-center gap-2 px-5 py-6 w-full hover:bg-slate-50 transition text-left">
               <Folder
                 className={clsx(
-                  "w-6 h-6",
-                  activeFolder ? "text-orange-500" : "text-slate-400"
+                  "w-6 h-6 flex-shrink-0",
+                  activeFolder ? "text-blue-500" : "text-slate-400"
                 )}
               />
               <span
@@ -141,7 +130,6 @@ export default function NotesSidebar({
             sideOffset={4}
             className="w-[216px] p-2 bg-white shadow-md border rounded-xl"
           >
-            {/* List Existing Folders */}
             <div className="max-h-48 overflow-y-auto">
               {folders.map((folder) => (
                 <div
@@ -163,8 +151,6 @@ export default function NotesSidebar({
                     <folder.icon className="w-4 h-4 flex-shrink-0" />
                     <span className="truncate">{folder.name}</span>
                   </button>
-
-                  {/* FOLDER ACTION MENU */}
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                     <ItemActionMenu
                       itemName={folder.name}
@@ -180,7 +166,6 @@ export default function NotesSidebar({
               ))}
             </div>
 
-            {/* Section Add Folder */}
             <div className="mt-2 pt-2 border-t border-slate-200">
               {isAddingFolder ? (
                 <div className="px-1 pb-1">
@@ -189,7 +174,7 @@ export default function NotesSidebar({
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     placeholder="Name..."
-                    className="w-full text-sm border rounded px-2 py-1 mb-2 outline-none focus:border-orange-500"
+                    className="w-full text-sm border rounded px-2 py-1 mb-2 outline-none focus:border-blue-500"
                     onKeyDown={(e) =>
                       e.key === "Enter" && handleAddFolderSubmit()
                     }
@@ -240,13 +225,12 @@ export default function NotesSidebar({
           ))}
         </nav>
 
-        {/* WORKSPACE LIST */}
+        {/* PROJECT LIST */}
         {activeFolder && (
           <>
             <div className="mt-6 px-5 text-xs font-semibold text-slate-400 tracking-wide flex items-center justify-between">
-              WORKSPACE
-              {/* --- Popover Controlled State --- */}
-              <Popover open={wsPopoverOpen} onOpenChange={setWsPopoverOpen}>
+              PROJECTS
+              <Popover open={projectPopoverOpen} onOpenChange={setProjectPopoverOpen}>
                 <PopoverTrigger asChild>
                   <button className="p-1 hover:bg-slate-200 rounded-md transition">
                     <Plus className="w-4 h-4 text-slate-600" />
@@ -254,30 +238,29 @@ export default function NotesSidebar({
                 </PopoverTrigger>
                 <CreateWorkspacePopover
                   onCreate={(ws) => {
-                    onCreateWorkspace(ws.label, ws.icon);
-                    // Tutup popover secara manual setelah create
-                    setWsPopoverOpen(false);
+                    onCreateProject(ws.label, ws.icon);
+                    setProjectPopoverOpen(false);
                   }}
                 />
               </Popover>
             </div>
 
             <nav className="mt-2 px-3 pb-20 overflow-y-auto max-h-[calc(100vh-300px)]">
-              {workspaces.length === 0 ? (
+              {projects.length === 0 ? (
                 <p className="px-3 text-xs text-slate-400 italic mt-2">
-                  No workspaces yet.
+                  No projects yet.
                 </p>
               ) : (
-                workspaces.map((wsName) => {
-                  const isActive = activeWorkspace === wsName;
+                projects.map((projectName) => {
+                  const isActive = activeProject === projectName;
                   const Icon =
-                    customIcons[wsName] ||
-                    DEFAULT_WORKSPACE_ICONS[wsName] ||
+                    customIcons[projectName] ||
+                    DEFAULT_PROJECT_ICONS[projectName] ||
                     Hash;
 
                   return (
                     <div
-                      key={wsName}
+                      key={projectName}
                       className={clsx(
                         "group flex items-center w-full rounded-md text-sm transition-all pr-1",
                         isActive
@@ -286,22 +269,21 @@ export default function NotesSidebar({
                       )}
                     >
                       <button
-                        onClick={() => onWorkspaceSelect(wsName)}
+                        onClick={() => onProjectSelect(projectName)}
                         className="flex-1 flex items-center gap-3 px-3 py-2 text-left truncate"
                       >
                         <Icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{wsName}</span>
+                        <span className="truncate">{projectName}</span>
                       </button>
 
-                      {/* WORKSPACE ACTION MENU */}
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <ItemActionMenu
-                          itemName={wsName}
-                          itemType="Workspace"
+                          itemName={projectName}
+                          itemType="Project"
                           onRename={(newName) =>
-                            onRenameWorkspace(wsName, newName)
+                            onRenameProject(projectName, newName)
                           }
-                          onDelete={() => onDeleteWorkspace(wsName)}
+                          onDelete={() => onDeleteProject(projectName)}
                         />
                       </div>
                     </div>
@@ -316,7 +298,7 @@ export default function NotesSidebar({
       <div className="p-4 border-t border-slate-200">
         <button className="w-full flex items-center gap-2 text-sm px-3 py-2 rounded-md hover:bg-slate-100 text-slate-700 transition">
           <Plus className="w-4 h-4" />
-          New Page
+          Quick Task
         </button>
       </div>
     </aside>

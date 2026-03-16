@@ -1,10 +1,10 @@
-import HomePage from "./components/HomePage";
+import HabitsWrapper from "./components/HabitsWrapper";
 import PageContainer from "@/app/components/PageContainer";
 
-export default function DashboardPage() {
+export default function HabitsPage() {
   return (
     <PageContainer>
-      <HomePage />
+      <HabitsWrapper />
     </PageContainer>
   );
 }

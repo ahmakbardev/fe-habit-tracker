@@ -16,7 +16,7 @@ type Props = {
   onSelect: (workspace: string) => void;
   onRenameWorkspace: (oldName: string, newName: string) => void;
   onDeleteWorkspace: (wsName: string) => void;
-  onBack: () => void; // [BARU]
+  onBack: () => void;
 };
 
 type ViewMode = "grid" | "list";
@@ -26,7 +26,7 @@ export default function WorkspaceDashboard({
   onSelect,
   onRenameWorkspace,
   onDeleteWorkspace,
-  onBack, // [BARU]
+  onBack,
 }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
@@ -39,7 +39,6 @@ export default function WorkspaceDashboard({
       "
     >
       <div className="mx-auto">
-        {/* [BARU] BACK BUTTON */}
         <div className="mb-6">
           <button
             onClick={onBack}
@@ -50,7 +49,6 @@ export default function WorkspaceDashboard({
           </button>
         </div>
 
-        {/* Header Section */}
         <div className="flex items-end justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 mb-2">
@@ -61,7 +59,6 @@ export default function WorkspaceDashboard({
             </p>
           </div>
 
-          {/* View Toggle */}
           <div className="flex bg-white border border-slate-200 p-1 rounded-lg shadow-sm">
             <button
               onClick={() => setViewMode("grid")}
@@ -90,7 +87,6 @@ export default function WorkspaceDashboard({
           </div>
         </div>
 
-        {/* Empty State */}
         {workspaces.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed border-slate-300 rounded-2xl">
             <LayoutGrid className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -99,7 +95,6 @@ export default function WorkspaceDashboard({
             </p>
           </div>
         ) : (
-          /* Content Area */
           <div
             className={clsx(
               viewMode === "grid"
@@ -118,7 +113,6 @@ export default function WorkspaceDashboard({
                     : "px-4 py-3 rounded-xl hover:bg-blue-50/30"
                 )}
               >
-                {/* Left Side */}
                 <div className="flex items-center gap-3 flex-1">
                   <div
                     className={clsx(
@@ -147,7 +141,6 @@ export default function WorkspaceDashboard({
                   </div>
                 </div>
 
-                {/* Right Side */}
                 <div className="flex items-center gap-2">
                   <ArrowRight
                     className={clsx(

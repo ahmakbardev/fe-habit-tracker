@@ -1,6 +1,5 @@
 import Topbar from "@/app/components/Topbar";
 import FloatingMenu from "@/app/components/FloatingMenu";
-import PageContainer from "@/app/components/PageContainer";
 
 export default function MainLayout({
   children,
@@ -8,14 +7,14 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen w-full">
-      <div className="flex flex-col flex-1">
-        <Topbar />
+    <div className="flex h-screen w-full flex-col overflow-hidden">
+      <Topbar />
 
-        <PageContainer>{children}</PageContainer>
-
-        <FloatingMenu />
+      <div className="flex-1 relative overflow-hidden flex">
+        {children}
       </div>
+
+      <FloatingMenu />
     </div>
   );
 }

@@ -12,11 +12,13 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import clsx from "clsx";
 
 export default function FloatingMenu() {
   const [isMobile, setIsMobile] = useState(false);
   const [active, setActive] = useState("Home");
   const [open, setOpen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const mobileItems = [
     { key: "Habits", icon: <CheckCircle2 size={25} />, href: "/habits" },
@@ -32,6 +34,24 @@ export default function FloatingMenu() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // Auto-hide logic for desktop
+  useEffect(() => {
+    if (isMobile || open) {
+      setIsMinimized(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setIsMinimized(true);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [isMobile, open, isMinimized]); // Re-run when state changes to restart timer
+
+  const handleMouseEnter = () => {
+    setIsMinimized(false);
+  };
 
   if (isMobile) {
     return (
@@ -119,12 +139,20 @@ export default function FloatingMenu() {
   }
 
   // ---------------------
-  // DESKTOP FAB MENU (TETAP SAMA)
+  // DESKTOP FAB MENU
   // ---------------------
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-end gap-4">
+    <motion.div 
+      onMouseEnter={handleMouseEnter}
+      animate={{ x: isMinimized ? 40 : 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      className="fixed bottom-6 right-6 z-50 flex items-end gap-4"
+    >
       <div
-        className="flex items-center gap-3 p-2"
+        className={clsx(
+          "flex items-center gap-3 p-2 transition-opacity duration-300",
+          isMinimized ? "opacity-40 hover:opacity-100" : "opacity-100"
+        )}
         style={{ filter: "url(#gooey)" }}
       >
         <AnimatePresence>
@@ -184,6 +212,6 @@ export default function FloatingMenu() {
           {open ? <X size={26} /> : <Menu size={26} />}
         </motion.button>
       </div>
-    </div>
+    </motion.div>
   );
 }

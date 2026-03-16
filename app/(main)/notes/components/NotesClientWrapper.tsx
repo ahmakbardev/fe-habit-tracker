@@ -26,6 +26,8 @@ const initialFolders = [
   { name: "Projects", icon: Folder },
 ];
 
+import { AnimatePresence } from "framer-motion";
+
 export default function NotesClientWrapper() {
   // --- STATE ---
   const [folders, setFolders] = useState(initialFolders);
@@ -225,8 +227,19 @@ export default function NotesClientWrapper() {
     }));
   };
 
+  const handleReorderNotes = (newNotes: NoteItem[]) => {
+    if (!activeFolder || !activeWorkspace) return;
+    setNotesData((prev) => ({
+      ...prev,
+      [activeFolder]: {
+        ...prev[activeFolder],
+        [activeWorkspace]: newNotes,
+      },
+    }));
+  };
+
   return (
-    <>
+    <div className="flex h-full w-full overflow-hidden">
       <NotesSidebar
         folders={folders}
         activeFolder={activeFolder}
@@ -243,45 +256,54 @@ export default function NotesClientWrapper() {
         onDeleteFolder={handleDeleteFolder}
       />
 
-      {!activeFolder ? (
-        <FolderDashboard
-          folders={folders}
-          onSelect={handleFolderSelect}
-          onRenameFolder={handleRenameFolder}
-          onDeleteFolder={handleDeleteFolder}
-          onCreateFolder={handleCreateFolder}
-        />
-      ) : activeWorkspace === "" ? (
-        <WorkspaceDashboard
-          workspaces={getCurrentWorkspaces()}
-          onSelect={handleWorkspaceSelect}
-          onRenameWorkspace={handleRenameWorkspace}
-          onDeleteWorkspace={handleDeleteWorkspace}
-          onBack={handleBackToFolders} // [BARU]
-        />
-      ) : (
-        <NotesContentPanel
-          workspace={activeWorkspace}
-          notes={getCurrentNotes()}
-          createNote={createNote}
-          duplicateNote={duplicateNote}
-          deleteNote={deleteNote}
-          onNoteClick={(note) => setSelectedNote(note)}
-          isDetailOpen={isDetailOpen}
-          activeNoteId={selectedNote?.id}
-          onBack={handleBackToWorkspaces} // [BARU]
-        />
-      )}
-
-      {isDetailOpen && (
-        <NoteDetailPanel
-          note={selectedNote!}
-          onClose={() => setSelectedNote(null)}
-          onDelete={deleteNote}
-          onUpdate={updateNote}
-          onCreateNew={createNote}
-        />
-      )}
-    </>
+      <main className="flex-1 h-full overflow-hidden flex min-w-0">
+        {!activeFolder ? (
+          <FolderDashboard
+            folders={folders}
+            onSelect={handleFolderSelect}
+            onRenameFolder={handleRenameFolder}
+            onDeleteFolder={handleDeleteFolder}
+            onCreateFolder={handleCreateFolder}
+          />
+        ) : activeWorkspace === "" ? (
+          <WorkspaceDashboard
+            workspaces={getCurrentWorkspaces()}
+            onSelect={handleWorkspaceSelect}
+            onRenameWorkspace={handleRenameWorkspace}
+            onDeleteWorkspace={handleDeleteWorkspace}
+            onBack={handleBackToFolders} // [BARU]
+          />
+        ) : (
+          <>
+            <NotesContentPanel
+              folder={activeFolder!}
+              workspace={activeWorkspace}
+              notes={getCurrentNotes()}
+              createNote={createNote}
+              duplicateNote={duplicateNote}
+              deleteNote={deleteNote}
+              onNoteClick={(note) => setSelectedNote(note)}
+              isDetailOpen={isDetailOpen}
+              activeNoteId={selectedNote?.id}
+              onBack={handleBackToWorkspaces} // [BARU]
+              onRenameWorkspace={handleRenameWorkspace}
+              onReorderNotes={handleReorderNotes}
+            />
+            <AnimatePresence mode="popLayout">
+              {isDetailOpen && (
+                <NoteDetailPanel
+                  key="detail-panel"
+                  note={selectedNote!}
+                  onClose={() => setSelectedNote(null)}
+                  onDelete={deleteNote}
+                  onUpdate={updateNote}
+                  onCreateNew={createNote}
+                />
+              )}
+            </AnimatePresence>
+          </>
+        )}
+      </main>
+    </div>
   );
 }

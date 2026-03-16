@@ -12,7 +12,7 @@ import clsx from "clsx";
 type Props = {
   itemName: string;
   // [FIX] Tambahkan "Item" ke dalam union type agar sesuai dengan default value
-  itemType?: "Workspace" | "Folder" | "Item";
+  itemType?: "Workspace" | "Folder" | "Item" | "Project";
   onRename: (newName: string) => void;
   onDelete: () => void;
   align?: "start" | "center" | "end";

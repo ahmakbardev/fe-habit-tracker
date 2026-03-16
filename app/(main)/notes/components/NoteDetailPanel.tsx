@@ -4,6 +4,7 @@ import { X, Trash, Plus } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import type { NoteItem } from "./NotesClientWrapper";
 import RichTextEditor from "./text-editor/RichTextEditor";
+import { motion } from "framer-motion";
 
 type Props = {
   note: NoteItem;
@@ -37,46 +38,43 @@ export default function NoteDetailPanel({
       prevNoteIdRef.current = note.id;
     }
   }, [note.id, note.title, note.desc]);
-  // Kita masukkan title & desc agar linter senang,
-  // tapi guard `prevNoteIdRef` menjaga agar tidak reset saat ngetik sendiri.
 
   // 2. [FIX] Autosync Effect
   useEffect(() => {
-    // Cek apakah data lokal beda dengan data props (untuk menghindari loop update yang tidak perlu)
     const isTitleChanged = title !== note.title;
     const isBodyChanged = body !== note.desc;
 
     if (isTitleChanged || isBodyChanged) {
-      // Gunakan timeout kecil (debounce sederhana) agar tidak spamming update
       const timeoutId = setTimeout(() => {
         onUpdate({
           ...note,
           title,
           desc: body,
         });
-      }, 500); // Delay 500ms
+      }, 500);
 
       return () => clearTimeout(timeoutId);
     }
   }, [title, body, note, onUpdate]);
-  // Sekarang semua dependensi masuk. Debounce mencegah update terlalu agresif.
 
-  // --- HANDLER KEYBOARD ---
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown" || e.key === "Enter") {
       e.preventDefault();
-      // Logic focus ke editor
     }
   };
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ x: "100%", opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: "100%", opacity: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
       className="
-        fixed top-16 left-[500px]
-        h-[calc(100vh-64px)]
-        w-[calc(100vw-500px)]
+        relative flex-1
+        h-full
         bg-white border-l p-10
-        overflow-y-auto animate-slideIn
+        overflow-y-auto
       "
     >
       {/* HEADER: Close, Actions */}
@@ -129,6 +127,6 @@ export default function NoteDetailPanel({
 
       {/* BODY */}
       <RichTextEditor value={body} onChange={(v) => setBody(v)} />
-    </div>
+    </motion.div>
   );
 }

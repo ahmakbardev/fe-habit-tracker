@@ -7,7 +7,6 @@ import {
   List as ListIcon,
   Plus,
   Check,
-  // [FIX] Import tipe LucideIcon
   LucideIcon,
 } from "lucide-react";
 import {
@@ -19,7 +18,6 @@ import ItemActionMenu from "./ItemActionMenu";
 import clsx from "clsx";
 
 type Props = {
-  // [FIX] Ganti 'any' dengan 'LucideIcon'
   folders: { name: string; icon: LucideIcon }[];
   onSelect: (folderName: string) => void;
   onRenameFolder: (oldName: string, newName: string) => void;
@@ -37,8 +35,6 @@ export default function FolderDashboard({
   onCreateFolder,
 }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-
-  // State untuk Create Folder di Dashboard
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
@@ -59,7 +55,6 @@ export default function FolderDashboard({
       "
     >
       <div className="mx-auto">
-        {/* Header Section */}
         <div className="flex items-end justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 mb-2">
@@ -70,7 +65,6 @@ export default function FolderDashboard({
             </p>
           </div>
 
-          {/* View Toggle */}
           <div className="flex bg-white border border-slate-200 p-1 rounded-lg shadow-sm">
             <button
               onClick={() => setViewMode("grid")}
@@ -80,7 +74,6 @@ export default function FolderDashboard({
                   ? "bg-slate-100 text-slate-900 shadow-sm"
                   : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
               )}
-              title="Grid View"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -92,14 +85,12 @@ export default function FolderDashboard({
                   ? "bg-slate-100 text-slate-900 shadow-sm"
                   : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
               )}
-              title="List View"
             >
               <ListIcon className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Content Area */}
         <div
           className={clsx(
             viewMode === "grid"
@@ -120,7 +111,6 @@ export default function FolderDashboard({
                     : "px-4 py-3 rounded-xl hover:bg-orange-50/30"
                 )}
               >
-                {/* Left Side: Icon & Title */}
                 <div className="flex items-center gap-3 flex-1">
                   <div
                     className={clsx(
@@ -143,13 +133,9 @@ export default function FolderDashboard({
                     >
                       {folder.name}
                     </h3>
-                    {viewMode === "grid" && (
-                      <p className="text-xs text-slate-400">Folder</p>
-                    )}
                   </div>
                 </div>
 
-                {/* Right Side: Arrow & Action Menu */}
                 <div className="flex items-center gap-2">
                   <ArrowRight
                     className={clsx(
@@ -160,7 +146,6 @@ export default function FolderDashboard({
                     )}
                   />
 
-                  {/* Action Menu Container */}
                   <div
                     className={clsx(
                       "transition-all",
@@ -185,7 +170,6 @@ export default function FolderDashboard({
             );
           })}
 
-          {/* [BARU & FIXED] Button Create Langsung di sini (Inline JSX) */}
           <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
             <PopoverTrigger asChild>
               <button
