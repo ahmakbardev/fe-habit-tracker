@@ -1,0 +1,102 @@
+// app/(main)/notes/components/text-editor/commands.ts
+import { RefObject } from "react"; // [FIX] Import RefObject
+import { 
+  toggleFormat, toggleBlockType, toggleBlockClass, toggleList, toggleOrderedList, insertHTML, toggleCode, 
+  toggleTextColor,
+  toggleHighlight,
+  toggleCheckList
+} from "./html-utils";
+
+// [FIX] Definisikan tipe agar tidak perlu ditulis berulang-ulang
+type EditorRef = RefObject<HTMLDivElement>;
+type OnChangeFn = (html: string) => void;
+
+// ... (Bold, Italic, Underline)
+export const cmdBold = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("bold"); onChange(ref.current?.innerHTML || ""); };
+export const cmdItalic = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("italic"); onChange(ref.current?.innerHTML || ""); };
+export const cmdUnderline = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("underline"); onChange(ref.current?.innerHTML || ""); };
+
+// --- CODE ---
+export const cmdCode = (ref: EditorRef, onChange: OnChangeFn) => {
+  toggleCode(); 
+  onChange(ref.current?.innerHTML || "");
+};
+
+// --- BLOCKS ---
+export const cmdHeading1 = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockType("h1"); onChange(ref.current?.innerHTML || ""); };
+export const cmdBlockquote = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockType("blockquote"); onChange(ref.current?.innerHTML || ""); };
+export const cmdListItem = (ref: EditorRef, onChange: OnChangeFn) => { toggleList(); onChange(ref.current?.innerHTML || ""); };
+export const cmdOrderedList = (ref: EditorRef, onChange: OnChangeFn) => { toggleOrderedList(); onChange(ref.current?.innerHTML || ""); };
+
+// --- ALIGNMENT ---
+const ALIGN_CLASSES = ["text-left", "text-center", "text-right", "text-justify"];
+
+export const cmdAlignLeft = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockClass("text-left", ALIGN_CLASSES); onChange(ref.current?.innerHTML || ""); };
+export const cmdAlignCenter = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockClass("text-center", ALIGN_CLASSES); onChange(ref.current?.innerHTML || ""); };
+export const cmdAlignRight = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockClass("text-right", ALIGN_CLASSES); onChange(ref.current?.innerHTML || ""); };
+export const cmdAlignJustify = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockClass("text-justify", ALIGN_CLASSES); onChange(ref.current?.innerHTML || ""); };
+
+// --- INSERTS ---
+export const cmdLink = (ref: EditorRef, onChange: OnChangeFn, alias: string, url: string) => {
+  const html = `<a href="${url}" class="text-blue-500 underline" target="_blank">${alias}</a>`;
+  insertHTML(html);
+  onChange(ref.current?.innerHTML || "");
+};
+
+export const cmdImage = (ref: EditorRef, onChange: OnChangeFn, url: string) => {
+  const html = `
+    <div class="my-3 w-full flex justify-center">
+      <img src="${url}" class="max-w-full rounded-lg block object-contain shadow-sm" style="width: 90%;" />
+    </div>
+  `;
+  insertHTML(html);
+  onChange(ref.current?.innerHTML || "");
+};
+
+export const cmdInsertTable = (ref: EditorRef, onChange: OnChangeFn) => {
+  const html = `
+    <div class="overflow-x-auto my-4 group/table-wrapper">
+      <table class="w-full border-collapse border border-slate-300 text-sm">
+        <thead>
+          <tr class="bg-slate-50">
+            <th class="border border-slate-300 p-2 text-left font-semibold min-w-[100px]">Header 1</th>
+            <th class="border border-slate-300 p-2 text-left font-semibold min-w-[100px]">Header 2</th>
+            <th class="border border-slate-300 p-2 text-left font-semibold min-w-[100px]">Header 3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="border border-slate-300 p-2">Cell 1</td>
+            <td class="border border-slate-300 p-2">Cell 2</td>
+            <td class="border border-slate-300 p-2">Cell 3</td>
+          </tr>
+          <tr>
+            <td class="border border-slate-300 p-2">Cell 4</td>
+            <td class="border border-slate-300 p-2">Cell 5</td>
+            <td class="border border-slate-300 p-2">Cell 6</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p><br /></p>
+  `;
+  insertHTML(html);
+  onChange(ref.current?.innerHTML || "");
+};
+
+// --- COLORS ---
+export const cmdTextColor = (ref: EditorRef, onChange: OnChangeFn, colorClass: string) => {
+  toggleTextColor(colorClass);
+  onChange(ref.current?.innerHTML || "");
+};
+
+export const cmdHighlight = (ref: EditorRef, onChange: OnChangeFn, bgClass: string) => {
+  toggleHighlight(bgClass);
+  onChange(ref.current?.innerHTML || "");
+};
+
+// --- CHECKLIST ---
+export const cmdChecklist = (ref: EditorRef, onChange: OnChangeFn) => {
+  toggleCheckList();
+  onChange(ref.current?.innerHTML || "");
+};

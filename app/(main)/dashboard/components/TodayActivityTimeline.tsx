@@ -102,7 +102,7 @@ const DUMMY_ACTIVITIES: Activity[] = [
   {
     id: 1,
     title: "Weekly Project Review",
-    start: "09:00",
+    start: "07:00",
     end: "12:00",
     color: "blue",
   },
