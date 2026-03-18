@@ -59,16 +59,21 @@ export const NotificationService = {
   async sendSubscriptionToServer(subscription: PushSubscription) {
     try {
       const { endpoint, keys } = subscription.toJSON();
-      await api.post('/push-subscriptions', {
+      console.log("📤 Sending subscription to Laravel...", { endpoint, keys });
+      
+      const response = await api.post('/push-subscriptions', {
         endpoint,
         keys: {
           auth: keys?.auth,
           p256dh: keys?.p256dh
-        }
+        },
+        content_encoding: "aesgcm" // Ditambahkan sesuai requirement backend
       });
-      console.log('Subscription sent to server successfully');
-    } catch (error) {
-      console.error('Error sending subscription to server:', error);
+      
+      console.log('✅ Subscription saved in Laravel database:', response.data);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Error saving subscription to Laravel:', errorMessage);
     }
   },
 
