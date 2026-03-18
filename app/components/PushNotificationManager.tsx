@@ -31,7 +31,9 @@ export default function PushNotificationManager() {
   }, []);
 
   const handleAllow = async () => {
+    console.log("🖱️ Button Clicked: Enable Now");
     const granted = await NotificationService.requestPermission();
+    console.log("🖱️ Permission result in component:", granted);
     if (granted) {
       setPermissionStatus('granted');
     } else {
