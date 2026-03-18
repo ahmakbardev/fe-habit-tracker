@@ -10,12 +10,27 @@ export default function SplashScreen() {
   useEffect(() => {
     setMounted(true);
     
+    // Cek apakah sudah pernah melihat splash di sesi ini
+    const hasSeenSplash = sessionStorage.getItem("pwa-splash-seen");
+    
+    if (hasSeenSplash) {
+      setIsVisible(false);
+      // Hapus static splash jika masih ada (karena efek script di layout)
+      const staticSplash = document.getElementById("pwa-static-splash");
+      if (staticSplash) staticSplash.style.display = "none";
+      return;
+    }
+
+    // Jika belum pernah lihat, jalankan logic biasa
+    sessionStorage.setItem("pwa-splash-seen", "true");
+
     // Sembunyikan static splash segera setelah JS siap mengambil alih animasi
     const staticSplash = document.getElementById("pwa-static-splash");
     if (staticSplash) {
       staticSplash.style.opacity = "0";
+      staticSplash.style.pointerEvents = "none";
       setTimeout(() => {
-        staticSplash.remove();
+        staticSplash.style.display = "none";
       }, 500);
     }
 

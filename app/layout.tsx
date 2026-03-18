@@ -45,11 +45,32 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (sessionStorage.getItem('pwa-splash-seen')) {
+                  document.documentElement.classList.add('hide-pwa-splash');
+                }
+              })();
+            `,
+          }}
+        />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              .hide-pwa-splash #pwa-static-splash { display: none !important; }
+            `,
+          }}
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {/* Static Splash Screen - Rendered immediately by browser */}
         <div 
           id="pwa-static-splash"
+          suppressHydrationWarning
           style={{
             position: "fixed",
             inset: 0,
