@@ -4,10 +4,27 @@
   "description": "Track your habits and take notes seamlessly.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "display_override": ["window-controls-overlay", "minimal-ui"],
+  "background_color": "#020617",
+  "theme_color": "#020617",
   "orientation": "portrait",
   "scope": "/",
+  "shortcuts": [
+    {
+      "name": "Add Habit",
+      "short_name": "Add Habit",
+      "description": "Create a new habit to track",
+      "url": "/habits?action=add",
+      "icons": [{ "src": "/favicon.ico", "sizes": "192x192" }]
+    },
+    {
+      "name": "Notes",
+      "short_name": "Notes",
+      "description": "Open your notes",
+      "url": "/notes",
+      "icons": [{ "src": "/favicon.ico", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192x192.png",
