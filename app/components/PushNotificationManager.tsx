@@ -5,6 +5,10 @@ import { Bell, BellOff, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NotificationService } from "@/lib/notification-service";
 
+interface ExtendedNotificationOptions extends NotificationOptions {
+  vibrate?: number[];
+}
+
 export default function PushNotificationManager() {
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unsupported'>('default');
   const [showPrompt, setShowPrompt] = useState(false);
@@ -16,30 +20,12 @@ export default function PushNotificationManager() {
     }
 
     setPermissionStatus(Notification.permission);
-
-    // Show prompt logic:
-    // 1. If permission is 'default' (not asked yet)
-    // 2. Wait 10 seconds if PWA popup is potentially active
-    // 3. Or 5 seconds if already standalone
+    
+    // Langsung munculkan setelah 2 detik untuk testing
     if (Notification.permission === 'default') {
-      const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-      const delay = isStandalone ? 5000 : 15000; // Standalone faster (5s), Website slower (15s)
-
       const timer = setTimeout(() => {
-        // Check if PWA installer is currently busy
-        if (!sessionStorage.getItem("pwa-popup-active")) {
-          setShowPrompt(true);
-        } else {
-          // If still busy, check again in 5 seconds
-          const retryTimer = setInterval(() => {
-            if (!sessionStorage.getItem("pwa-popup-active")) {
-              setShowPrompt(true);
-              clearInterval(retryTimer);
-            }
-          }, 5000);
-        }
-      }, delay);
-      
+        setShowPrompt(true);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -59,7 +45,60 @@ export default function PushNotificationManager() {
     // User can manually enable later in settings
   };
 
-  if (permissionStatus === 'granted' || permissionStatus === 'unsupported' || !showPrompt) {
+  const triggerTestNotification = async () => {
+    console.log("🔔 Triggering test notification...");
+    if (!("serviceWorker" in navigator)) {
+      alert("Browser kamu tidak mendukung Service Worker.");
+      return;
+    }
+    
+    try {
+      // Menggunakan navigator.serviceWorker.ready untuk memastikan SW sudah aktif
+      const registration = await navigator.serviceWorker.ready;
+      console.log("✅ Service Worker Ready:", registration);
+      
+      if (!registration) {
+        // Fallback: coba daftarkan ulang jika benar-benar kosong
+        const newReg = await navigator.serviceWorker.register("/sw.js");
+        console.log("🆕 Re-registered Service Worker:", newReg);
+        alert("Service Worker baru didaftarkan. Coba klik tombol lonceng sekali lagi.");
+        return;
+      }
+
+      await registration.showNotification('📝 Habit Tracker: Test!', {
+        body: 'Ini adalah tampilan pengingat kamu 10 menit sebelum Todo dimulai.',
+        icon: '/favicon.ico', // Gunakan favicon dulu yang pasti ada
+        badge: '/favicon.ico',
+        vibrate: [200, 100, 200],
+        tag: 'test-notification',
+        actions: [
+          { action: 'view_app', title: 'Buka Aplikasi' }
+        ]
+      } as ExtendedNotificationOptions);
+      
+      console.log("🚀 Notification command sent to OS!");
+    } catch (err) {
+      console.error("❌ Failed to show notification:", err);
+      alert("Gagal memunculkan notifikasi: " + err);
+    }
+  };
+
+  // If permission is already granted, show a small test button instead of the full prompt
+  if (permissionStatus === 'granted') {
+    return (
+      <motion.button
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ opacity: 1, scale: 1 }}
+        onClick={triggerTestNotification}
+        className="fixed bottom-24 right-6 w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl border border-slate-800 flex items-center justify-center hover:bg-slate-800 transition-all z-[998]"
+        title="Test Notification"
+      >
+        <Bell size={20} className="text-purple-400" />
+      </motion.button>
+    );
+  }
+
+  if (permissionStatus === 'unsupported' || !showPrompt) {
     return null;
   }
 
