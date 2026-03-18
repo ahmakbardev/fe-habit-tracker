@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { PopoverContent } from "@/components/ui/popover";
-import { Upload } from "lucide-react"; // Pastikan install lucide-react atau ganti icon lain
+import { Upload, Loader2 } from "lucide-react"; // Pastikan install lucide-react atau ganti icon lain
+import { NoteService } from "@/app/(main)/notes/services/note-service";
 
 type Props = {
   onSubmit: (data: { url: string }) => void;
@@ -11,6 +12,7 @@ type Props = {
 export default function ImagePopover({ onSubmit }: Props) {
   const [url, setUrl] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // --- LOGIC SUBMIT URL ---
   const submitUrl = () => {
@@ -20,12 +22,17 @@ export default function ImagePopover({ onSubmit }: Props) {
   };
 
   // --- LOGIC FILE HANDLE ---
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      onSubmit({ url: reader.result as string });
-    };
-    reader.readAsDataURL(file);
+  const handleFile = async (file: File) => {
+    try {
+      setIsUploading(true);
+      const res = await NoteService.uploadMedia(file);
+      onSubmit({ url: res.url });
+    } catch (error) {
+      console.error("Upload failed", error);
+      alert("Failed to upload image. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // --- DRAG EVENTS ---
@@ -69,22 +76,28 @@ export default function ImagePopover({ onSubmit }: Props) {
           `}
         >
           <div className="flex flex-col items-center justify-center pt-5 pb-6 text-slate-500">
-            <Upload
-              className={`w-8 h-8 mb-2 transition-colors ${
-                isDragging
-                  ? "text-blue-500"
-                  : "text-slate-400 group-hover:text-slate-600"
-              }`}
-            />
+            {isUploading ? (
+              <Loader2 className="w-8 h-8 mb-2 animate-spin text-blue-500" />
+            ) : (
+              <Upload
+                className={`w-8 h-8 mb-2 transition-colors ${
+                  isDragging
+                    ? "text-blue-500"
+                    : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            )}
             <p className="text-xs text-center px-4">
               <span className="font-semibold text-slate-700">
-                Click to upload
+                {isUploading ? "Uploading..." : "Click to upload"}
               </span>{" "}
-              or drag and drop
+              {!isUploading && "or drag and drop"}
             </p>
-            <p className="text-[10px] mt-1 text-slate-400">
-              SVG, PNG, JPG or GIF
-            </p>
+            {!isUploading && (
+              <p className="text-[10px] mt-1 text-slate-400">
+                SVG, PNG, JPG or GIF
+              </p>
+            )}
           </div>
 
           {/* INPUT HIDDEN (Triggered by Label Click) */}

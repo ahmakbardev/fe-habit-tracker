@@ -2,20 +2,20 @@
 
 import { useState } from "react";
 import {
-  Folder,
   ArrowRight,
   LayoutGrid,
   List as ListIcon,
   ArrowLeft,
+  LucideIcon,
 } from "lucide-react";
 import ItemActionMenu from "./ItemActionMenu";
 import clsx from "clsx";
 
 type Props = {
-  workspaces: string[];
-  onSelect: (workspace: string) => void;
-  onRenameWorkspace: (oldName: string, newName: string) => void;
-  onDeleteWorkspace: (wsName: string) => void;
+  workspaces: { id: string; name: string; icon: LucideIcon }[];
+  onSelect: (workspaceId: string) => void;
+  onRenameWorkspace: (wsId: string, newName: string) => void;
+  onDeleteWorkspace: (wsId: string) => void;
   onBack: () => void;
 };
 
@@ -104,12 +104,12 @@ export default function WorkspaceDashboard({
           >
             {workspaces.map((ws) => (
               <div
-                key={ws}
-                onClick={() => onSelect(ws)}
+                key={ws.id}
+                onClick={() => onSelect(ws.id)}
                 className={clsx(
                   "group relative flex items-center justify-between bg-white border border-slate-200 cursor-pointer transition-all hover:border-blue-200 hover:ring-1 hover:ring-blue-200",
                   viewMode === "grid"
-                    ? "p-6 rounded-2xl shadow-sm hover:shadow-md"
+                    ? "p-6 rounded-2xl shadow-sm hover:shadow-md h-full"
                     : "px-4 py-3 rounded-xl hover:bg-blue-50/30"
                 )}
               >
@@ -120,7 +120,7 @@ export default function WorkspaceDashboard({
                       viewMode === "grid" ? "p-3" : "p-2"
                     )}
                   >
-                    <Folder
+                    <ws.icon
                       className={clsx(
                         viewMode === "grid" ? "w-6 h-6" : "w-5 h-5"
                       )}
@@ -133,7 +133,7 @@ export default function WorkspaceDashboard({
                         viewMode === "grid" ? "text-base" : "text-sm"
                       )}
                     >
-                      {ws}
+                      {ws.name}
                     </h3>
                     {viewMode === "grid" && (
                       <p className="text-xs text-slate-400">Workspace</p>
@@ -161,10 +161,10 @@ export default function WorkspaceDashboard({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ItemActionMenu
-                      itemName={ws}
+                      itemName={ws.name}
                       itemType="Workspace"
-                      onRename={(newName) => onRenameWorkspace(ws, newName)}
-                      onDelete={() => onDeleteWorkspace(ws)}
+                      onRename={(newName) => onRenameWorkspace(ws.id, newName)}
+                      onDelete={() => onDeleteWorkspace(ws.id)}
                       triggerClassName="hover:bg-blue-100 text-slate-400 hover:text-blue-600"
                     />
                   </div>

@@ -9,6 +9,7 @@ import { Reorder, useDragControls, motion } from "framer-motion";
 type Props = {
   folder: string;
   workspace: string;
+  workspaceId: string;
   notes: NoteItem[];
   onNoteClick: (note: NoteItem) => void;
   createNote: () => void;
@@ -17,7 +18,7 @@ type Props = {
   isDetailOpen: boolean;
   activeNoteId?: string | null;
   onBack: () => void;
-  onRenameWorkspace: (oldName: string, newName: string) => void;
+  onRenameWorkspace: (wsId: string, newName: string) => void;
   onReorderNotes: (newNotes: NoteItem[]) => void;
 };
 
@@ -134,6 +135,7 @@ function NoteCard({
 export default function NotesContentPanel({
   folder,
   workspace,
+  workspaceId,
   notes,
   onNoteClick,
   createNote,
@@ -148,6 +150,7 @@ export default function NotesContentPanel({
   const safeWorkspaceName = workspace || "";
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(safeWorkspaceName);
+  const [searchQuery, setSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setTempName(safeWorkspaceName); }, [safeWorkspaceName]);
@@ -160,7 +163,7 @@ export default function NotesContentPanel({
 
   const handleSave = () => {
     const trimmed = tempName.trim();
-    if (trimmed && trimmed !== safeWorkspaceName) onRenameWorkspace(safeWorkspaceName, trimmed);
+    if (trimmed && trimmed !== safeWorkspaceName) onRenameWorkspace(workspaceId, trimmed);
     else setTempName(safeWorkspaceName);
     setIsEditing(false);
   };
@@ -171,6 +174,11 @@ export default function NotesContentPanel({
   };
 
   const stripHtml = (html: string) => html.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+
+  const filteredNotes = notes.filter(n => 
+    n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (n.desc && n.desc.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <motion.div 
@@ -193,7 +201,12 @@ export default function NotesContentPanel({
           <div className="flex items-center gap-3">
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-slate-600" />
-              <input placeholder="Search notes..." className="w-48 sm:w-64 pl-9 pr-4 py-2 bg-slate-50 border border-transparent rounded-full text-sm outline-none focus:bg-white focus:border-slate-200 focus:ring-2 focus:ring-slate-100 transition-all" />
+              <input 
+                placeholder="Search notes..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-48 sm:w-64 pl-9 pr-4 py-2 bg-slate-50 border border-transparent rounded-full text-sm outline-none focus:bg-white focus:border-slate-200 focus:ring-2 focus:ring-slate-100 transition-all" 
+              />
             </div>
             <button onClick={createNote} className="flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium rounded-full hover:bg-slate-800 active:scale-95 transition-all">
               <Plus className="w-4 h-4" />
@@ -217,19 +230,23 @@ export default function NotesContentPanel({
               <Edit2 className="w-5 h-5 text-slate-300 opacity-0 group-hover:opacity-100 transition-all hover:text-slate-600" />
             </div>
           )}
-          <p className="text-slate-500 mt-1 text-sm">{notes.length} notes in this workspace</p>
+          <p className="text-slate-500 mt-1 text-sm">{filteredNotes.length} notes found</p>
         </div>
       )}
 
       <div className="pb-20">
-        {notes.length === 0 ? (
+        {filteredNotes.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
-            <p className="text-slate-400 text-sm font-medium">No notes here yet.</p>
-            <button onClick={createNote} className="mt-2 text-sm text-black underline underline-offset-4 hover:text-slate-600">Create your first note</button>
+            <p className="text-slate-400 text-sm font-medium">
+              {searchQuery ? "No notes match your search." : "No notes here yet."}
+            </p>
+            {!searchQuery && (
+              <button onClick={createNote} className="mt-2 text-sm text-black underline underline-offset-4 hover:text-slate-600">Create your first note</button>
+            )}
           </div>
         ) : (
-          <Reorder.Group axis="y" values={notes} onReorder={onReorderNotes} className="flex flex-col gap-4">
-            {notes.map((note) => (
+          <Reorder.Group axis="y" values={filteredNotes} onReorder={onReorderNotes} className="flex flex-col gap-4">
+            {filteredNotes.map((note) => (
               <NoteCard
                 key={note.id}
                 note={note}

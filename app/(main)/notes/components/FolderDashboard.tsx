@@ -18,10 +18,10 @@ import ItemActionMenu from "./ItemActionMenu";
 import clsx from "clsx";
 
 type Props = {
-  folders: { name: string; icon: LucideIcon }[];
-  onSelect: (folderName: string) => void;
-  onRenameFolder: (oldName: string, newName: string) => void;
-  onDeleteFolder: (folderName: string) => void;
+  folders: { id: string; name: string; icon: LucideIcon }[];
+  onSelect: (folderId: string) => void;
+  onRenameFolder: (folderId: string, newName: string) => void;
+  onDeleteFolder: (folderId: string) => void;
   onCreateFolder: (name: string) => void;
 };
 
@@ -102,8 +102,8 @@ export default function FolderDashboard({
             const Icon = folder.icon;
             return (
               <div
-                key={folder.name}
-                onClick={() => onSelect(folder.name)}
+                key={folder.id}
+                onClick={() => onSelect(folder.id)}
                 className={clsx(
                   "group relative flex items-center justify-between bg-white border border-slate-200 cursor-pointer transition-all hover:border-orange-200 hover:ring-1 hover:ring-orange-200",
                   viewMode === "grid"
@@ -159,9 +159,9 @@ export default function FolderDashboard({
                       itemName={folder.name}
                       itemType="Folder"
                       onRename={(newName) =>
-                        onRenameFolder(folder.name, newName)
+                        onRenameFolder(folder.id, newName)
                       }
-                      onDelete={() => onDeleteFolder(folder.name)}
+                      onDelete={() => onDeleteFolder(folder.id)}
                       triggerClassName="hover:bg-orange-100 text-slate-400 hover:text-orange-600"
                     />
                   </div>

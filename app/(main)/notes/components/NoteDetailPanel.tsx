@@ -5,12 +5,13 @@ import { useState, useEffect, useRef } from "react";
 import type { NoteItem } from "./NotesClientWrapper";
 import RichTextEditor from "./text-editor/RichTextEditor";
 import { motion } from "framer-motion";
+import clsx from "clsx";
 
 type Props = {
   note: NoteItem;
   onClose: () => void;
   onDelete: (id: string) => void;
-  onUpdate: (note: NoteItem) => void;
+  onUpdate: (note: NoteItem) => Promise<void>; // Ubah ke Promise agar bisa ditunggu
   onCreateNew: () => void;
 };
 
@@ -24,34 +25,48 @@ export default function NoteDetailPanel({
   // Simpan ID sebelumnya untuk mendeteksi perpindahan note
   const prevNoteIdRef = useRef(note.id);
 
-  const [title, setTitle] = useState(note.title);
-  const [body, setBody] = useState(note.desc);
+  const [title, setTitle] = useState(note.title || "");
+  const [body, setBody] = useState<string>(
+    typeof note.content === "string" ? note.content : note.desc || ""
+  );
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
 
   const titleRef = useRef<HTMLInputElement>(null);
 
-  // 1. [FIX] Effect untuk Reset saat Ganti Note
+  // 1. Effect untuk Reset saat Ganti Note
   useEffect(() => {
-    // Cek apakah ID note berubah dari render sebelumnya
     if (prevNoteIdRef.current !== note.id) {
-      setTitle(note.title);
-      setBody(note.desc);
+      setTitle(note.title || "");
+      setBody(typeof note.content === "string" ? note.content : note.desc || "");
+      setSaveStatus("saved");
       prevNoteIdRef.current = note.id;
     }
-  }, [note.id, note.title, note.desc]);
+  }, [note.id, note.title, note.content, note.desc]);
 
-  // 2. [FIX] Autosync Effect
+  // 2. [OPTIMIZED] Autosync Effect dengan Debounce 1s & Status Load
   useEffect(() => {
-    const isTitleChanged = title !== note.title;
-    const isBodyChanged = body !== note.desc;
+    const isTitleChanged = title !== (note.title || "");
+    const currentBody = typeof note.content === "string" ? note.content : note.desc || "";
+    const isBodyChanged = body !== currentBody;
 
     if (isTitleChanged || isBodyChanged) {
-      const timeoutId = setTimeout(() => {
-        onUpdate({
-          ...note,
-          title,
-          desc: body,
-        });
-      }, 500);
+      setSaveStatus("unsaved");
+      
+      const timeoutId = setTimeout(async () => {
+        setSaveStatus("saving");
+        try {
+          await onUpdate({
+            ...note,
+            title,
+            content: body,
+            desc: body
+          });
+          setSaveStatus("saved");
+        } catch (error) {
+          console.error("Auto-save failed:", error);
+          setSaveStatus("unsaved");
+        }
+      }, 1000); // Debounce 1 detik agar lebih responsif
 
       return () => clearTimeout(timeoutId);
     }
@@ -77,20 +92,32 @@ export default function NoteDetailPanel({
         overflow-y-auto
       "
     >
-      {/* HEADER: Close, Actions */}
+      {/* HEADER: Close, Status, Actions */}
       <div className="flex items-center justify-between mb-6">
-        {/* KIRI: Close */}
-        <button
-          onClick={onClose}
-          className="p-1 -ml-1 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
-          title="Close (Esc)"
-        >
-          <X className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onClose}
+            className="p-1 -ml-1 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
+            title="Close (Esc)"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* SUBTLE SAVE STATUS */}
+          <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-50 border border-slate-100">
+            <div className={clsx(
+              "w-1.5 h-1.5 rounded-full transition-colors duration-300",
+              saveStatus === "saving" ? "bg-orange-400 animate-pulse" :
+              saveStatus === "saved" ? "bg-green-500" : "bg-slate-300"
+            )} />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved" : "Unsaved"}
+            </span>
+          </div>
+        </div>
 
         {/* KANAN: Actions Group */}
         <div className="flex items-center gap-2">
-          {/* Tombol New Note */}
           <button
             onClick={onCreateNew}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-black hover:bg-slate-100 rounded-md transition"
@@ -101,7 +128,6 @@ export default function NoteDetailPanel({
 
           <div className="w-px h-4 bg-slate-200 mx-1"></div>
 
-          {/* Tombol Delete */}
           <button
             onClick={() => onDelete(note.id)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-md transition"

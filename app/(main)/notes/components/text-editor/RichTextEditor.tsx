@@ -84,8 +84,11 @@ export default function RichTextEditor({ value, onChange }: Props) {
   // State untuk tracking focus & content (Empty State Logic)
   const [isFocused, setIsFocused] = useState(false);
 
+  // [FIX] Pastikan value adalah string sebelum melakukan operasi string
+  const safeValue = typeof value === "string" ? value : "";
+
   // Cek apakah konten kosong (handle kasus HTML sisaan spasi/break)
-  const isEmpty = !value || value === "<br>" || value.trim() === "";
+  const isEmpty = !safeValue || safeValue === "<br>" || safeValue.trim() === "";
   const showPlaceholder = isEmpty && !isFocused;
 
   // --- HANDLERS (Image, Link, & TABLE) ---

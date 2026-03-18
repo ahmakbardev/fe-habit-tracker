@@ -49,29 +49,29 @@ const mainMenu = [
 
 type NotesSidebarProps = {
   // [FIX] Ganti any dengan LucideIcon
-  folders: { name: string; icon: LucideIcon }[];
-  activeFolder: string | null;
-  activeWorkspace: string;
-  workspaces: string[];
+  folders: { id: string; name: string; icon: LucideIcon }[];
+  activeFolderId: string | null;
+  activeWorkspaceId: string;
+  workspaces: { id: string; name: string }[];
   // [FIX] Ganti any dengan LucideIcon
   customIcons: Record<string, LucideIcon>;
-  onFolderSelect: (folder: string) => void;
-  onWorkspaceSelect: (ws: string) => void;
+  onFolderSelect: (id: string) => void;
+  onWorkspaceSelect: (id: string) => void;
   onCreateFolder: (name: string) => void;
   // [FIX] Ganti any dengan LucideIcon
   onCreateWorkspace: (name: string, icon: LucideIcon) => void;
   // Workspace Actions
-  onRenameWorkspace: (oldName: string, newName: string) => void;
-  onDeleteWorkspace: (wsName: string) => void;
+  onRenameWorkspace: (id: string, newName: string) => void;
+  onDeleteWorkspace: (id: string) => void;
   // Folder Actions
-  onRenameFolder?: (oldName: string, newName: string) => void;
-  onDeleteFolder?: (folderName: string) => void;
+  onRenameFolder?: (id: string, newName: string) => void;
+  onDeleteFolder?: (id: string) => void;
 };
 
 export default function NotesSidebar({
   folders,
-  activeFolder,
-  activeWorkspace,
+  activeFolderId,
+  activeWorkspaceId,
   workspaces,
   customIcons,
   onFolderSelect,
@@ -93,7 +93,8 @@ export default function NotesSidebar({
   // --- [BARU] State untuk Workspace Popover ---
   const [wsPopoverOpen, setWsPopoverOpen] = useState(false);
 
-  const displayFolderName = activeFolder || "Select Folder";
+  const activeFolder = folders.find(f => f.id === activeFolderId);
+  const displayFolderName = activeFolder?.name || "Select Folder";
 
   const handleAddFolderSubmit = () => {
     if (newFolderName.trim()) {
@@ -120,13 +121,13 @@ export default function NotesSidebar({
               <Folder
                 className={clsx(
                   "w-6 h-6",
-                  activeFolder ? "text-orange-500" : "text-slate-400"
+                  activeFolderId ? "text-orange-500" : "text-slate-400"
                 )}
               />
               <span
                 className={clsx(
                   "font-medium truncate",
-                  activeFolder ? "text-slate-800" : "text-slate-400"
+                  activeFolderId ? "text-slate-800" : "text-slate-400"
                 )}
               >
                 {displayFolderName}
@@ -145,17 +146,17 @@ export default function NotesSidebar({
             <div className="max-h-48 overflow-y-auto">
               {folders.map((folder) => (
                 <div
-                  key={folder.name}
+                  key={folder.id}
                   className={clsx(
                     "group flex items-center w-full rounded-md text-sm transition pr-1",
-                    activeFolder === folder.name
+                    activeFolderId === folder.id
                       ? "bg-slate-100 text-slate-900"
                       : "text-slate-600 hover:bg-slate-50"
                   )}
                 >
                   <button
                     onClick={() => {
-                      onFolderSelect(folder.name);
+                      onFolderSelect(folder.id);
                       setFolderPopoverOpen(false);
                     }}
                     className="flex-1 flex items-center gap-2 px-3 py-2 text-left truncate"
@@ -170,9 +171,9 @@ export default function NotesSidebar({
                       itemName={folder.name}
                       itemType="Folder"
                       onRename={(newName) =>
-                        onRenameFolder(folder.name, newName)
+                        onRenameFolder(folder.id, newName)
                       }
-                      onDelete={() => onDeleteFolder(folder.name)}
+                      onDelete={() => onDeleteFolder(folder.id)}
                       triggerClassName="hover:bg-white"
                     />
                   </div>
@@ -268,16 +269,16 @@ export default function NotesSidebar({
                   No workspaces yet.
                 </p>
               ) : (
-                workspaces.map((wsName) => {
-                  const isActive = activeWorkspace === wsName;
+                workspaces.map((ws) => {
+                  const isActive = activeWorkspaceId === ws.id;
                   const Icon =
-                    customIcons[wsName] ||
-                    DEFAULT_WORKSPACE_ICONS[wsName] ||
+                    customIcons[ws.id] ||
+                    DEFAULT_WORKSPACE_ICONS[ws.name] ||
                     Hash;
 
                   return (
                     <div
-                      key={wsName}
+                      key={ws.id}
                       className={clsx(
                         "group flex items-center w-full rounded-md text-sm transition-all pr-1",
                         isActive
@@ -286,22 +287,22 @@ export default function NotesSidebar({
                       )}
                     >
                       <button
-                        onClick={() => onWorkspaceSelect(wsName)}
+                        onClick={() => onWorkspaceSelect(ws.id)}
                         className="flex-1 flex items-center gap-3 px-3 py-2 text-left truncate"
                       >
                         <Icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{wsName}</span>
+                        <span className="truncate">{ws.name}</span>
                       </button>
 
                       {/* WORKSPACE ACTION MENU */}
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <ItemActionMenu
-                          itemName={wsName}
+                          itemName={ws.name}
                           itemType="Workspace"
                           onRename={(newName) =>
-                            onRenameWorkspace(wsName, newName)
+                            onRenameWorkspace(ws.id, newName)
                           }
-                          onDelete={() => onDeleteWorkspace(wsName)}
+                          onDelete={() => onDeleteWorkspace(ws.id)}
                         />
                       </div>
                     </div>
