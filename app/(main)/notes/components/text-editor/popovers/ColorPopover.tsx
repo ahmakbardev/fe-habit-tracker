@@ -1,6 +1,5 @@
 "use client";
 
-import { PopoverContent } from "@/components/ui/popover";
 import clsx from "clsx";
 
 type Props = {
@@ -42,11 +41,7 @@ export default function ColorPopover({
   onSelectHighlight,
 }: Props) {
   return (
-    <PopoverContent
-      align="start"
-      className="w-64 p-3 bg-white shadow-xl rounded-xl border border-slate-100"
-    >
-      {/* TEXT COLORS */}
+    <div className="bg-white">
       <div className="mb-3">
         <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">
           Text Color
@@ -67,7 +62,6 @@ export default function ColorPopover({
 
       <div className="h-px bg-slate-100 my-2" />
 
-      {/* HIGHLIGHTS */}
       <div>
         <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">
           Highlight
@@ -85,6 +79,6 @@ export default function ColorPopover({
           ))}
         </div>
       </div>
-    </PopoverContent>
+    </div>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PopoverContent } from "@/components/ui/popover";
-import { Upload, Loader2 } from "lucide-react"; // Pastikan install lucide-react atau ganti icon lain
+import { Upload, Loader2 } from "lucide-react";
 import { NoteService } from "@/app/(main)/notes/services/note-service";
 
 type Props = {
@@ -56,11 +55,10 @@ export default function ImagePopover({ onSubmit }: Props) {
   };
 
   return (
-    <PopoverContent className="w-80 p-4 border rounded-lg shadow-lg bg-white space-y-4">
+    <div className="space-y-4">
       <div className="space-y-2">
         <h4 className="font-medium text-sm text-slate-700">Upload Image</h4>
 
-        {/* --- AREA GABUNGAN: DRAG & DROP + CLICK --- */}
         <label
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
@@ -100,7 +98,6 @@ export default function ImagePopover({ onSubmit }: Props) {
             )}
           </div>
 
-          {/* INPUT HIDDEN (Triggered by Label Click) */}
           <input
             type="file"
             accept="image/*"
@@ -108,13 +105,12 @@ export default function ImagePopover({ onSubmit }: Props) {
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) handleFile(file);
-              e.target.value = ""; // Reset agar bisa re-upload file sama
+              e.target.value = "";
             }}
           />
         </label>
       </div>
 
-      {/* --- SEPARATOR --- */}
       <div className="flex items-center gap-2">
         <div className="h-[1px] bg-slate-200 flex-1" />
         <span className="text-[10px] text-slate-400 uppercase font-bold">
@@ -123,7 +119,6 @@ export default function ImagePopover({ onSubmit }: Props) {
         <div className="h-[1px] bg-slate-200 flex-1" />
       </div>
 
-      {/* --- URL INPUT --- */}
       <div className="flex gap-2">
         <input
           className="flex-1 px-3 py-1.5 border rounded-md outline-none text-sm focus:border-black transition"
@@ -140,6 +135,6 @@ export default function ImagePopover({ onSubmit }: Props) {
           Add
         </button>
       </div>
-    </PopoverContent>
+    </div>
   );
 }

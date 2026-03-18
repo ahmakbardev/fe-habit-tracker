@@ -95,32 +95,40 @@ export default function RichTextEditor({ value, onChange }: Props) {
   useEffect(() => {
     if (!editorEl) return;
 
-    const handleMouseDown = (e: MouseEvent) => {
+    const handleSelection = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
 
       // 1. Logic Image
       if (target.tagName === "IMG") {
-        e.preventDefault();
+        // Jangan preventDefault di touchstart agar tidak mematikan scroll
+        if (e.type === "mousedown") e.preventDefault();
         setSelectedImg(target as HTMLImageElement);
         setActiveTable(null); // Reset table selection
       }
       // 2. Logic Table
       else if (target.closest("table")) {
-        // Jangan preventDefault biar bisa ngetik di sel
         const table = target.closest("table") as HTMLTableElement;
         setActiveTable(table);
         setSelectedImg(null); // Reset img selection
       }
       // 3. Click elsewhere
       else {
-        if (selectedImg && target !== selectedImg) setSelectedImg(null);
-        // Cek jika klik diluar tabel, hilangkan menu tabel
-        if (activeTable && !target.closest("table")) setActiveTable(null);
+        // Cek jika klik di luar area image/table/menu
+        const isMenu = target.closest(".table-bubble-menu") || target.closest(".image-resizer");
+        if (!isMenu) {
+          if (selectedImg && target !== selectedImg) setSelectedImg(null);
+          if (activeTable && !target.closest("table")) setActiveTable(null);
+        }
       }
     };
 
-    editorEl.addEventListener("mousedown", handleMouseDown);
-    return () => editorEl.removeEventListener("mousedown", handleMouseDown);
+    editorEl.addEventListener("mousedown", handleSelection);
+    editorEl.addEventListener("touchstart", handleSelection, { passive: true });
+    
+    return () => {
+      editorEl.removeEventListener("mousedown", handleSelection);
+      editorEl.removeEventListener("touchstart", handleSelection);
+    };
   }, [editorEl, selectedImg, activeTable]);
 
   // Handler Link Click

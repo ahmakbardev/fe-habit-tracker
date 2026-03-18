@@ -1,9 +1,8 @@
 // app/(main)/notes/components/text-editor/Toolbar.tsx
 "use client";
 
-import { Popover, PopoverTrigger } from "@/components/ui/popover";
-import LinkPopover from "./popovers/LinkPopover";
-import { RefObject } from "react"; // [FIX] Import RefObject
+import { RefObject } from "react";
+import ResponsivePopover from "./ResponsivePopover";
 
 import {
   Bold,
@@ -37,7 +36,6 @@ import {
   cmdCode,
   cmdLink,
   cmdImage,
-  // New Commands
   cmdAlignLeft,
   cmdAlignCenter,
   cmdAlignRight,
@@ -51,30 +49,33 @@ import {
 import { restoreCaretManually, saveCaretManually } from "./caret-utils";
 import ImagePopover from "./popovers/ImagePopover";
 import ColorPopover from "./popovers/ColorPopover";
+import LinkPopover from "./popovers/LinkPopover";
 
 type Props = {
   refEl: HTMLDivElement | null;
   onChange: (v: string) => void;
 };
 
-// [FIX] Definisi Tipe untuk Command Function
 type CommandFn = (
   ref: RefObject<HTMLDivElement>,
   onChange: (v: string) => void
 ) => void;
 
 export default function Toolbar({ refEl, onChange }: Props) {
-  // [FIX] Casting ke RefObject agar tipe aman
   const refObj = (
     refEl ? { current: refEl } : null
   ) as RefObject<HTMLDivElement>;
 
-  // [FIX] Ganti any dengan CommandFn
   const run = (action: CommandFn) => {
     if (refObj && refObj.current) {
-      refObj.current.focus(); // Pastikan fokus balik ke editor sebelum command
+      refObj.current.focus();
       action(refObj, onChange);
     }
+  };
+
+  const handleOpen = () => {
+    refEl?.focus();
+    saveCaretManually();
   };
 
   return (
@@ -92,7 +93,7 @@ export default function Toolbar({ refEl, onChange }: Props) {
 
       <div className="w-[1px] h-6 bg-slate-200 mx-1" />
 
-      {/* ALIGNMENT - Logic Baru */}
+      {/* ALIGNMENT */}
       <ToolbarButton
         icon={<AlignLeft size={18} />}
         onClick={() => run(cmdAlignLeft)}
@@ -110,38 +111,38 @@ export default function Toolbar({ refEl, onChange }: Props) {
         onClick={() => run(cmdAlignJustify)}
       />
 
-      {/* [BARU] COLOR PICKER POPOVER */}
-      <Popover>
-        <PopoverTrigger
-          asChild
-          onClick={() => {
-            refEl?.focus();
-            saveCaretManually();
-          }}
-        >
-          <button className="p-1 hover:bg-slate-100 rounded">
+      {/* COLOR PICKER */}
+      <ResponsivePopover
+        title="Colors & Highlights"
+        trigger={
+          <button onClick={handleOpen} className="p-1 hover:bg-slate-100 rounded">
             <Baseline size={18} />
           </button>
-        </PopoverTrigger>
-        <ColorPopover
-          onSelectColor={(colorClass) => {
-            if (!refEl) return;
-            setTimeout(() => {
-              refEl.focus();
-              restoreCaretManually();
-              cmdTextColor({ current: refEl }, onChange, colorClass);
-            }, 0);
-          }}
-          onSelectHighlight={(bgClass) => {
-            if (!refEl) return;
-            setTimeout(() => {
-              refEl.focus();
-              restoreCaretManually();
-              cmdHighlight({ current: refEl }, onChange, bgClass);
-            }, 0);
-          }}
-        />
-      </Popover>
+        }
+      >
+        {(close) => (
+          <ColorPopover
+            onSelectColor={(colorClass) => {
+              if (!refEl) return;
+              setTimeout(() => {
+                refEl.focus();
+                restoreCaretManually();
+                cmdTextColor({ current: refEl }, onChange, colorClass);
+                close();
+              }, 0);
+            }}
+            onSelectHighlight={(bgClass) => {
+              if (!refEl) return;
+              setTimeout(() => {
+                refEl.focus();
+                restoreCaretManually();
+                cmdHighlight({ current: refEl }, onChange, bgClass);
+                close();
+              }, 0);
+            }}
+          />
+        )}
+      </ResponsivePopover>
 
       <div className="w-[1px] h-6 bg-slate-200 mx-1" />
 
@@ -173,57 +174,55 @@ export default function Toolbar({ refEl, onChange }: Props) {
         onClick={() => run(cmdBlockquote)}
       />
 
-      {/* Code pakai pre/block sementara */}
       <ToolbarButton icon={<Code size={18} />} onClick={() => run(cmdCode)} />
 
-      {/* Popovers (Link & Image) Code tetap sama ... */}
-      <Popover>
-        <PopoverTrigger
-          asChild
-          onClick={() => {
-            refEl?.focus();
-            saveCaretManually();
-          }}
-        >
-          <button className="p-1 hover:bg-slate-100 rounded">
+      {/* LINK */}
+      <ResponsivePopover
+        title="Insert Link"
+        trigger={
+          <button onClick={handleOpen} className="p-1 hover:bg-slate-100 rounded">
             <LinkIcon size={18} />
           </button>
-        </PopoverTrigger>
-        <LinkPopover
-          onSubmit={({ alias, url }) => {
-            if (!refEl) return;
-            setTimeout(() => {
-              refEl.focus();
-              restoreCaretManually();
-              cmdLink({ current: refEl }, onChange, alias, url);
-            }, 0);
-          }}
-        />
-      </Popover>
+        }
+      >
+        {(close) => (
+          <LinkPopover
+            onSubmit={({ alias, url }) => {
+              if (!refEl) return;
+              setTimeout(() => {
+                refEl.focus();
+                restoreCaretManually();
+                cmdLink({ current: refEl }, onChange, alias, url);
+                close();
+              }, 0);
+            }}
+          />
+        )}
+      </ResponsivePopover>
 
-      <Popover>
-        <PopoverTrigger
-          asChild
-          onClick={() => {
-            refEl?.focus();
-            saveCaretManually();
-          }}
-        >
-          <button className="p-1 hover:bg-slate-100 rounded">
+      {/* IMAGE */}
+      <ResponsivePopover
+        title="Insert Image"
+        trigger={
+          <button onClick={handleOpen} className="p-1 hover:bg-slate-100 rounded">
             <ImageIcon size={18} />
           </button>
-        </PopoverTrigger>
-        <ImagePopover
-          onSubmit={({ url }) => {
-            if (!refEl) return;
-            setTimeout(() => {
-              refEl.focus();
-              restoreCaretManually();
-              cmdImage({ current: refEl }, onChange, url);
-            }, 0);
-          }}
-        />
-      </Popover>
+        }
+      >
+        {(close) => (
+          <ImagePopover
+            onSubmit={({ url }) => {
+              if (!refEl) return;
+              setTimeout(() => {
+                refEl.focus();
+                restoreCaretManually();
+                cmdImage({ current: refEl }, onChange, url);
+                close();
+              }, 0);
+            }}
+          />
+        )}
+      </ResponsivePopover>
     </div>
   );
 }
