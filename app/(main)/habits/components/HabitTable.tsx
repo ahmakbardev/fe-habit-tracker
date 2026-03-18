@@ -377,7 +377,7 @@ export default function HabitTable({
   const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
   const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
 
-  const calendarCells = [
+  const calendarCells: { day: number; type: "prev" | "current" | "next" }[] = [
     ...Array.from({ length: firstDayIndex === 0 ? 6 : (firstDayIndex - 1 < 0 ? 6 : firstDayIndex - 1) }, (_, i) => ({
       day: prevMonthDays - ((firstDayIndex === 0 ? 6 : (firstDayIndex - 1 < 0 ? 6 : firstDayIndex - 1)) - 1 - i),
       type: "prev" as const,

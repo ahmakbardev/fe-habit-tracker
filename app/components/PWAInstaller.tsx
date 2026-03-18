@@ -35,6 +35,7 @@ export default function PWAInstaller() {
       const timer = setTimeout(() => {
         if (!window.matchMedia("(display-mode: standalone)").matches) {
           setShowPopup(true);
+          sessionStorage.setItem("pwa-popup-active", "true");
         }
       }, 3000);
 
@@ -47,6 +48,7 @@ export default function PWAInstaller() {
       setIsInstalled(true);
       setShowPopup(false);
       setDeferredPrompt(null);
+      sessionStorage.removeItem("pwa-popup-active");
       console.log("PWA was installed");
     });
 

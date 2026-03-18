@@ -66,3 +66,69 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+// PUSH NOTIFICATION HANDLER
+self.addEventListener('push', event => {
+  if (!(self.Notification && self.Notification.permission === 'granted')) {
+    return;
+  }
+
+  let data = {
+    title: 'Reminder Habit Tracker',
+    body: 'Ada sesuatu yang perlu kamu kerjakan!',
+    icon: '/icon-192x192.png',
+    data: {}
+  };
+
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      data = { ...data, ...payload };
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon,
+    badge: '/icon-192x192.png', // Monochrome icon for Android
+    vibrate: [100, 50, 100],
+    data: data.data,
+    actions: data.actions || [
+      { action: 'view_app', title: 'Buka Aplikasi' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// NOTIFICATION CLICK HANDLER
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+
+  // Redirect ke halaman spesifik jika ada ID di data
+  let urlToOpen = '/';
+  if (event.notification.data && event.notification.data.id) {
+    // Sesuaikan path berdasarkan tipe data (misal: /tasks/[id])
+    urlToOpen = `/tasks`; 
+  }
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // Jika tab aplikasi sudah terbuka, fokus ke tab tersebut
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if (client.url.includes(urlToOpen) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Jika belum ada tab terbuka, buka tab baru
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
