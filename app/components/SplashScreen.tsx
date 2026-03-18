@@ -2,7 +2,6 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
 
 export default function SplashScreen() {
   const [mounted, setMounted] = useState(false);
@@ -10,6 +9,16 @@ export default function SplashScreen() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // Sembunyikan static splash segera setelah JS siap mengambil alih animasi
+    const staticSplash = document.getElementById("pwa-static-splash");
+    if (staticSplash) {
+      staticSplash.style.opacity = "0";
+      setTimeout(() => {
+        staticSplash.remove();
+      }, 500);
+    }
+
     const timer = setTimeout(() => {
       setIsVisible(false);
     }, 2000);
@@ -17,7 +26,6 @@ export default function SplashScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Jangan render apapun di server untuk mencegah hydration mismatch pada ID Radix
   if (!mounted) return null;
 
   return (
@@ -29,7 +37,7 @@ export default function SplashScreen() {
             opacity: 0,
             transition: { duration: 0.8, ease: "easeInOut" }
           }}
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950"
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#020617]"
         >
           {/* Background Ambient Glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full" />
@@ -46,7 +54,7 @@ export default function SplashScreen() {
               }}
               className="w-20 h-20 bg-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-500/20 mb-6"
             >
-              <CheckCircle2 size={40} className="text-slate-900" />
+              <img src="/icons/favicon.svg" alt="Logo" className="w-10 h-10" />
             </motion.div>
 
             <motion.div
