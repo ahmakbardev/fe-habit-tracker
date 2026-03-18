@@ -52,9 +52,9 @@ export default function PWAInstaller() {
       console.log("PWA was installed");
     });
 
-    // Register Service Worker
+    // Register Service Worker - Perbaikan agar tidak melewatkan event 'load'
     if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
+      const registerSW = () => {
         navigator.serviceWorker.register("/sw.js").then(
           (registration) => {
             console.log("SW registered: ", registration);
@@ -63,7 +63,14 @@ export default function PWAInstaller() {
             console.log("SW registration failed: ", registrationError);
           }
         );
-      });
+      };
+
+      if (document.readyState === "complete") {
+        registerSW();
+      } else {
+        window.addEventListener("load", registerSW);
+        return () => window.removeEventListener("load", registerSW);
+      }
     }
 
     return () => window.removeEventListener("beforeinstallprompt", handler);
