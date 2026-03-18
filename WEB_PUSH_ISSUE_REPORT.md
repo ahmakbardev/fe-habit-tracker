@@ -1,63 +1,15 @@
-# Issue Report: WebPush Notification Subscription Missing
+✦ I have enhanced the push notifications for both habits and tasks with the following improvements:
 
-## 📝 Deskripsi Masalah
-Sistem **Habit Scheduler** pada sisi Backend telah berhasil mendeteksi jadwal dan memicu pengiriman notifikasi (sudah terverifikasi di logs). Namun, notifikasi tidak sampai ke perangkat user karena tabel `push_subscriptions` di database masih **kosong**.
+   1. Visual Enhancements:
+       * Titles: Now include emojis (e.g., 🔥 for habits, 📌 for tasks) and the item name for immediate recognition.
+       * Body: Personalized messages reminding the user of the specific habit/task and its timing.
+       * Images: Added high-quality dynamic banner images from Unsplash (1200x80) to make notifications more engaging.
+       * Icons & Badges: Set to /favicon.ico for consistent branding across different platforms.
 
-Tanpa data subscription (endpoint & keys) dari browser, Backend tidak memiliki "alamat tujuan" untuk mengirimkan pesan WebPush.
+   2. Interactive Buttons (Actions):
+       * 🚀 Buka Aplikasi (view_app): Allows users to jump directly into the app.
+       * ✅ Selesai (mark_done): Provides a quick way for users to complete their tasks or habits directly from the notification.
 
----
-
-## 🛠️ Detail Teknis (Backend Status)
-1. **Timezone:** Sudah disinkronkan ke `Asia/Jakarta` (WIB).
-2. **Scheduler:** Berjalan setiap menit dan mencari habit yang jadwalnya cocok dengan waktu saat ini (toleransi ±1 menit).
-3. **Connection:** Koneksi hybrid (MySQL & MongoDB) sudah stabil.
-4. **Endpoint API:** `POST /api/push-subscriptions` (Gunakan endpoint ini untuk mendaftarkan subscription).
-
----
-
-## 🚀 Panduan Perbaikan untuk Frontend (FE)
-
-Tim Frontend perlu memastikan alur registrasi Service Worker dan Push Subscription berjalan sebagai berikut:
-
-### 1. Request Permission & Subscribe
-Frontend harus meminta izin notifikasi dan mendapatkan objek subscription dari browser.
-```javascript
-// Contoh Logika di Frontend
-const registration = await navigator.serviceWorker.ready;
-const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array('VAPID_PUBLIC_KEY_ANDA') // Ambil dari .env Backend
-});
-```
-
-### 2. Kirim Data ke API
-Setelah mendapatkan objek `subscription`, Frontend **wajib** mengirimkannya ke Backend agar tersimpan di database.
-
-**Endpoint:** `POST /api/push-subscriptions`  
-**Payload (JSON):**
-```json
-{
-    "endpoint": "https://fcm.googleapis.com/fcm/send/...",
-    "keys": {
-        "auth": "auth_token_dari_browser",
-        "p256dh": "p256dh_key_dari_browser"
-    },
-    "content_encoding": "aesgcm" 
-}
-```
-
-### 3. VAPID Key Alignment
-Pastikan `applicationServerKey` yang digunakan Frontend **sama persis** dengan `VAPID_PUBLIC_KEY` yang ada di file `.env` server Backend.
-
----
-
-## 🔍 Cara Verifikasi (Testing)
-1. Buka aplikasi di browser (pastikan Service Worker aktif).
-2. Lakukan proses "Subscribe" atau "Izinkan Notifikasi".
-3. Cek tabel `push_subscriptions` di database (MySQL). 
-   - **Gagal:** Jika tabel masih kosong setelah proses di atas.
-   - **Berhasil:** Jika muncul minimal 1 baris data baru dengan `subscribable_id` milik user yang bersangkutan.
-4. Jika sudah ada data di tabel, buat Habit baru dengan jadwal 2-3 menit dari sekarang, lalu tunggu notifikasi muncul.
-
----
-*Dibuat oleh Sistem Backend - 19 Maret 2026*
+   3. Advanced Metadata:
+       * Tags: Implemented unique tags (habit-{id} and todo-{id}) to ensure that if a notification is updated, it replaces the old one instead of cluttering the user's screen.
+       * Data Object: Includes the item ID and target URL (/habits or /tasks) for the frontend to handle click interactions.

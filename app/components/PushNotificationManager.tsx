@@ -67,14 +67,16 @@ export default function PushNotificationManager() {
         return;
       }
 
-      await registration.showNotification('📝 Habit Tracker: Test!', {
-        body: 'Ini adalah tampilan pengingat kamu 10 menit sebelum Todo dimulai.',
-        icon: '/favicon.ico', // Gunakan favicon dulu yang pasti ada
+      await registration.showNotification('🔥 Target Habit Hari Ini!', {
+        body: 'Kamu sudah lari 3km, tinggal 2km lagi untuk mencapai target harianmu. Ayo semangat!',
+        icon: '/favicon.ico',
         badge: '/favicon.ico',
-        vibrate: [200, 100, 200],
+        image: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&q=80&w=1000', // Gambar lari keren sebagai contoh
+        vibrate: [200, 100, 200, 100, 200],
         tag: 'test-notification',
         actions: [
-          { action: 'view_app', title: 'Buka Aplikasi' }
+          { action: 'view_app', title: '🚀 Buka Aplikasi' },
+          { action: 'mark_done', title: '✅ Selesai' }
         ]
       } as ExtendedNotificationOptions);
       
@@ -85,19 +87,9 @@ export default function PushNotificationManager() {
     }
   };
 
-  // If permission is already granted, show a small test button instead of the full prompt
+  // If permission is already granted, don't show anything (removed test button)
   if (permissionStatus === 'granted') {
-    return (
-      <motion.button
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        onClick={triggerTestNotification}
-        className="fixed bottom-24 right-6 w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl border border-slate-800 flex items-center justify-center hover:bg-slate-800 transition-all z-[998]"
-        title="Test Notification"
-      >
-        <Bell size={20} className="text-purple-400" />
-      </motion.button>
-    );
+    return null;
   }
 
   if (permissionStatus === 'unsupported' || !showPrompt) {
