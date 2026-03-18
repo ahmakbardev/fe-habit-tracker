@@ -3,8 +3,10 @@ import { useState, useEffect } from "react"
 
 export function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(false)
+  const [hasMounted, setHasMounted] = useState(false)
 
   useEffect(() => {
+    setHasMounted(true)
     const media = window.matchMedia(query)
     if (media.matches !== matches) {
       setMatches(media.matches)
@@ -14,7 +16,7 @@ export function useMediaQuery(query: string) {
     return () => media.removeEventListener("change", listener)
   }, [matches, query])
 
-  return matches
+  return hasMounted ? matches : false
 }
 import { twMerge } from "tailwind-merge"
 

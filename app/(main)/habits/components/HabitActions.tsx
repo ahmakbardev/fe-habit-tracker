@@ -6,7 +6,7 @@ import { Habit } from "./habit-types";
 type Props = {
   habits: Habit[];
   completionData: Record<string, number>;
-  onToggleToday: (id: number, time?: string) => void;
+  onToggleToday: (id: string, time?: string) => void;
 };
 
 export default function HabitActions({
