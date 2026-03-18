@@ -9,6 +9,7 @@ import TableBubbleMenu from "./TableBubbleMenu";
 import { handleTableTab } from "./table-utils";
 import { ensureCheckboxInLi } from "./html-utils";
 import { moveCaretToEnd } from "./caret-utils";
+import { useMediaQuery } from "@/lib/utils";
 
 // --- [UPDATED] RICH EMPTY STATE ---
 const EmptyState = () => (
@@ -77,6 +78,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [editorEl, setEditorEl] = useState<HTMLDivElement | null>(null);
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   // State untuk active table menu
   const [activeTable, setActiveTable] = useState<HTMLTableElement | null>(null);
@@ -232,13 +234,39 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
   };
 
+  // --- [NEW] FLOATING MENU LOGIC ---
+  const [floatingMenu, setFloatingMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      if (!isMobile) return; // Hanya di mobile
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !ref.current?.contains(sel.anchorNode)) {
+        setFloatingMenu(null);
+        return;
+      }
+
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      
+      if (rect.width > 0 && rect.height > 0) {
+        setFloatingMenu({
+          x: rect.left + rect.width / 2,
+          y: rect.top - 10, // Diatas teks
+        });
+      }
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, [isMobile]);
+
   // --- MARKDOWN SHORTCUTS & TABLE TAB HANDLER ---
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     // 1. DETEKSI TAB DI DALAM TABLE
     if (e.key === "Tab") {
       const sel = window.getSelection();
       const node = sel?.anchorNode;
-      // [FIX TS] Pastikan node diperlakukan sebagai HTMLElement
       const element = (
         node?.nodeType === 3 ? node.parentElement : node
       ) as HTMLElement;
@@ -259,49 +287,46 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
       const anchorNode = sel.anchorNode;
       if (anchorNode?.nodeType === 3 && anchorNode.parentElement) {
-        const text = anchorNode.textContent || "";
+        const textBeforeCaret = anchorNode.textContent?.slice(0, sel.anchorOffset) || "";
+        const trimmedText = textBeforeCaret.trim();
 
-        // 1. ORDERED LIST ("1. " -> <ol>)
-        if (text.trim() === "1.") {
+        // [FIX] Gunakan range untuk hapus prefix markdown sebelum trigger toggle
+        const triggerToggle = (type: string | (() => void)) => {
           e.preventDefault();
           const range = document.createRange();
-          range.selectNodeContents(anchorNode);
+          // Cari posisi awal dari prefix (misal '#' atau '1.')
+          const startPos = textBeforeCaret.lastIndexOf(trimmedText);
+          range.setStart(anchorNode, startPos);
+          range.setEnd(anchorNode, sel.anchorOffset);
           range.deleteContents();
-          toggleOrderedList();
+          
+          if (typeof type === "function") type();
+          else toggleBlockType(type);
+          
           onChange(ref.current?.innerHTML || "");
+        };
+
+        // 1. ORDERED LIST ("1. " -> <ol>)
+        if (trimmedText === "1.") {
+          triggerToggle(toggleOrderedList);
           return;
         }
 
         // 2. UNORDERED LIST ("- " or "* " -> <ul>)
-        if (text.trim() === "-" || text.trim() === "*") {
-          e.preventDefault();
-          const range = document.createRange();
-          range.selectNodeContents(anchorNode);
-          range.deleteContents();
-          toggleList();
-          onChange(ref.current?.innerHTML || "");
+        if (trimmedText === "-" || trimmedText === "*") {
+          triggerToggle(toggleList);
           return;
         }
 
         // 3. HEADING 1 ("# " -> <h1>)
-        if (text.trim() === "#") {
-          e.preventDefault();
-          const range = document.createRange();
-          range.selectNodeContents(anchorNode);
-          range.deleteContents();
-          toggleBlockType("h1");
-          onChange(ref.current?.innerHTML || "");
+        if (trimmedText === "#") {
+          triggerToggle("h1");
           return;
         }
 
         // 4. BLOCKQUOTE ("> " -> <blockquote>)
-        if (text.trim() === ">") {
-          e.preventDefault();
-          const range = document.createRange();
-          range.selectNodeContents(anchorNode);
-          range.deleteContents();
-          toggleBlockType("blockquote");
-          onChange(ref.current?.innerHTML || "");
+        if (trimmedText === ">") {
+          triggerToggle("blockquote");
           return;
         }
       }
@@ -310,7 +335,36 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   return (
     <div className="relative w-full group min-h-[60vh]">
-      {editorEl && <Toolbar refEl={editorEl} onChange={onChange} />}
+      {/* [UPDATED] STICKY TOOLBAR */}
+      <div className="sticky -top-[1.48rem] z-[100] bg-white/80 backdrop-blur-md border-b mb-4 -mx-2 px-2 py-1">
+        {editorEl && <Toolbar refEl={editorEl} onChange={onChange} />}
+      </div>
+
+      {/* [NEW] FLOATING MOBILE MENU */}
+      {floatingMenu && (
+        <div 
+          className="fixed z-[200] -translate-x-1/2 -translate-y-full bg-slate-900 text-white rounded-lg shadow-xl flex items-center p-1 gap-0.5 animate-in fade-in zoom-in duration-200"
+          style={{ left: floatingMenu.x, top: floatingMenu.y }}
+        >
+          <button 
+            onClick={() => { document.execCommand("bold"); onChange(ref.current?.innerHTML || ""); }}
+            className="p-2 hover:bg-slate-700 rounded text-xs font-bold"
+          >B</button>
+          <button 
+            onClick={() => { document.execCommand("italic"); onChange(ref.current?.innerHTML || ""); }}
+            className="p-2 hover:bg-slate-700 rounded text-xs italic"
+          >I</button>
+          <button 
+            onClick={() => { document.execCommand("underline"); onChange(ref.current?.innerHTML || ""); }}
+            className="p-2 hover:bg-slate-700 rounded text-xs underline"
+          >U</button>
+          <div className="w-px h-4 bg-slate-700 mx-1" />
+          <button 
+            onClick={() => { toggleBlockType("h1"); onChange(ref.current?.innerHTML || ""); }}
+            className="p-2 hover:bg-slate-700 rounded text-xs font-bold"
+          >H1</button>
+        </div>
+      )}
 
       <ImageResizer
         // [FIX TS] Casting RefObject agar sesuai ekspektasi ImageResizer

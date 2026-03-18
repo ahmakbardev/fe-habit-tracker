@@ -79,7 +79,7 @@ export default function Toolbar({ refEl, onChange }: Props) {
   };
 
   return (
-    <div className="flex gap-2 mb-3 border-b pb-2 items-center flex-wrap">
+    <div className="flex gap-2 mb-3 pb-2 items-center flex-wrap">
       {/* FORMATTING */}
       <ToolbarButton icon={<Bold size={18} />} onClick={() => run(cmdBold)} />
       <ToolbarButton
