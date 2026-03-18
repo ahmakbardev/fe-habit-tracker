@@ -83,7 +83,7 @@ export const NoteService = {
     return unwrap(response);
   },
 
-  updateNote: async (id: string, data: { title?: string; content?: unknown; plain_text_preview?: string }): Promise<ApiNote> => {
+  updateNote: async (id: string, data: { title?: string; content?: unknown; plain_text_preview?: string; highlight?: boolean }): Promise<ApiNote> => {
     const response = await api.patch(`/notes/${id}`, data);
     return unwrap(response);
   },

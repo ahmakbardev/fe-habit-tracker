@@ -334,6 +334,28 @@ export default function NotesClientWrapper() {
     }));
   }, [activeFolderId, activeWorkspaceId]);
 
+  const toggleHighlight = useCallback(async (note: NoteItem) => {
+    try {
+      const newStatus = !note.highlight;
+      await NoteService.updateNote(note.id, { highlight: newStatus });
+      
+      setNotesData(prev => {
+        if (!activeFolderId || !activeWorkspaceId) return prev;
+        return {
+          ...prev,
+          [activeFolderId]: {
+            ...prev[activeFolderId],
+            [activeWorkspaceId]: prev[activeFolderId][activeWorkspaceId].map(n =>
+              n.id === note.id ? { ...n, highlight: newStatus } : n
+            )
+          }
+        };
+      });
+    } catch (error) {
+      console.error("Failed to toggle highlight:", error);
+    }
+  }, [activeFolderId, activeWorkspaceId]);
+
   const handleCreateFolder = useCallback(async (name: string) => {
     try {
       const newF = await NoteService.createFolder(name);
@@ -458,6 +480,7 @@ export default function NotesClientWrapper() {
                 createNote={createNote}
                 duplicateNote={duplicateNote}
                 deleteNote={deleteNote}
+                toggleHighlight={toggleHighlight}
                 onNoteClick={(n) => navigateTo({ note: n.id })}
                 isDetailOpen={isDetailOpen}
                 activeNoteId={activeNoteId}
