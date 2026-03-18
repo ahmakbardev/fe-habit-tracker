@@ -47,20 +47,14 @@ export default function FolderDashboard({
   };
 
   return (
-    <div
-      className="
-        fixed top-16 left-[240px] 
-        h-[calc(100vh-64px)] w-[calc(100vw-240px)]
-        bg-slate-50 p-10 overflow-y-auto
-      "
-    >
-      <div className="mx-auto">
-        <div className="flex items-end justify-between mb-8">
+    <div className="flex-1 h-full bg-slate-50 p-6 md:p-10 overflow-y-auto">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 mb-2">
               Select Folder
             </h1>
-            <p className="text-slate-500">
+            <p className="text-slate-500 text-sm md:text-base">
               Choose a folder to view your workspaces.
             </p>
           </div>

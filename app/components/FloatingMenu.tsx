@@ -12,11 +12,12 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import clsx from "clsx";
 
 export default function FloatingMenu() {
+  const pathname = usePathname();
   const [isMobile, setIsMobile] = useState(false);
-  const [active, setActive] = useState("Home");
   const [open, setOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -27,6 +28,9 @@ export default function FloatingMenu() {
     { key: "Notes", icon: <NotebookPen size={25} />, href: "/notes" },
     { key: "Profile", icon: <UserRound size={25} />, href: "/profile" },
   ];
+
+  // Logic to determine active item based on pathname
+  const active = mobileItems.find(item => pathname.startsWith(item.href))?.key || "Home";
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 500);
@@ -71,8 +75,9 @@ export default function FloatingMenu() {
           // JIKA TOMBOL HOME (TENGAH)
           if (isHome) {
             return (
-              <div
+              <Link
                 key={item.key}
+                href={item.href}
                 className="relative w-full flex justify-center"
               >
                 <motion.div
@@ -82,13 +87,13 @@ export default function FloatingMenu() {
                     bg-blue-600 text-white scale-125
                     w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg
                     border-4 border-slate-50/50
-                    z-20  /* 🔥 UPDATE 1: Z-index tinggi agar selalu di atas garis yg lewat */
+                    z-20
                   "
                 >
                   {item.icon}
                 </motion.div>
                 <div className="w-14 h-10" />
-              </div>
+              </Link>
             );
           }
 
@@ -98,8 +103,8 @@ export default function FloatingMenu() {
               key={item.key}
               className="relative flex items-center justify-center w-full"
             >
-              <button
-                onClick={() => setActive(item.key)}
+              <Link
+                href={item.href}
                 className={`
                   relative flex flex-col items-center justify-center p-2 rounded-xl transition-colors duration-300
                   ${
@@ -122,15 +127,14 @@ export default function FloatingMenu() {
                       absolute -top-3 
                       w-10 h-1 
                       bg-slate-900 rounded-full
-                      z-0 /* 🔥 UPDATE 2: Z-index rendah (di bawah icon & di bawah Home) */
+                      z-0
                     "
                   />
                 )}
 
                 {/* ICON */}
-                {/* 🔥 UPDATE 3: Pastikan icon lebih tinggi dari garis (z-10) */}
                 <span className="relative z-10">{item.icon}</span>
-              </button>
+              </Link>
             </div>
           );
         })}

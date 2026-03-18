@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 // 1. Tambahkan import LucideIcon
 import { Folder, LucideIcon, Hash } from "lucide-react";
 import NotesSidebar from "./NotesSidebar";
@@ -10,6 +10,9 @@ import WorkspaceDashboard from "./WorkspaceDashboard";
 import FolderDashboard from "./FolderDashboard";
 import { NoteService, ApiFolder, ApiWorkspace, ApiNote } from "../services/note-service";
 import { getIconByName, getIconName } from "../utils/icon-utils";
+import { useMediaQuery } from "@/lib/utils";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import clsx from "clsx";
 
 export type NoteItem = {
   id: string;
@@ -25,18 +28,46 @@ export type NoteItem = {
 import { AnimatePresence } from "framer-motion";
 
 export default function NotesClientWrapper() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   // --- STATE ---
   const [folders, setFolders] = useState<{ id: string; name: string; icon: LucideIcon }[]>([]);
   const [workspaceIcons, setWorkspaceIcons] = useState<Record<string, LucideIcon>>({});
-  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>("");
+  
+  // Ambil state awal dari URL
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(searchParams.get("folder"));
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(searchParams.get("workspace") || "");
   const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null);
+  
   const [notesData, setNotesData] = useState<Record<string, Record<string, NoteItem[]>>>({});
   const [loading, setLoading] = useState(true);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const isDetailOpen = selectedNote !== null;
 
   const [workspaceNames, setWorkspaceNames] = useState<Record<string, string>>({});
+
+  // Update URL whenever state changes
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeFolderId) params.set("folder", activeFolderId);
+    else params.delete("folder");
+    
+    if (activeWorkspaceId) params.set("workspace", activeWorkspaceId);
+    else params.delete("workspace");
+    
+    if (selectedNote?.id) params.set("note", selectedNote.id);
+    else params.delete("note");
+
+    const newQuery = params.toString();
+    const currentQuery = searchParams.toString();
+    
+    if (newQuery !== currentQuery) {
+      router.replace(`${pathname}?${newQuery}`);
+    }
+  }, [activeFolderId, activeWorkspaceId, selectedNote?.id, pathname, router, searchParams]);
 
   // --- HELPER: Media URL Normalization ---
   const normalizeMediaUrls = useCallback((html: string): string => {
@@ -71,16 +102,14 @@ export default function NotesClientWrapper() {
     return stripped || "- "; // Jika kosong setelah di-strip, kirim placeholder
   }, []);
 
-  // --- FETCH DATA ---
+  // --- FETCH DATA (Only fetch, don't sync state here) ---
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await NoteService.getAll();
-      
       const data = response;
 
       if (!Array.isArray(data)) {
-        console.error("Expected array but got:", typeof data, data);
         setFolders([]);
         return;
       }
@@ -123,6 +152,29 @@ export default function NotesClientWrapper() {
       setLoading(false);
     }
   }, [extractContentHtml]);
+
+  // --- INITIAL SYNC FROM URL (Run once after data loaded) ---
+  useEffect(() => {
+    if (loading || folders.length === 0) return;
+
+    const targetNoteId = searchParams.get("note");
+    if (targetNoteId && !selectedNote) {
+      // Find note in loaded data
+      for (const fId in notesData) {
+        for (const wsId in notesData[fId]) {
+          const found = notesData[fId][wsId].find(n => n.id === targetNoteId);
+          if (found) {
+            setSelectedNote(found);
+            // Also ensure parent folder/workspace are active
+            setActiveFolderId(fId);
+            setActiveWorkspaceId(wsId);
+            break;
+          }
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, folders.length]); // Only run when loading finishes or folders first appear
 
   useEffect(() => {
     fetchAllData();
@@ -416,78 +468,99 @@ export default function NotesClientWrapper() {
     }));
   }, [activeFolderId, activeWorkspaceId]);
 
-  if (loading) {
-    return <div className="flex h-full w-full items-center justify-center">Loading...</div>;
-  }
-
+  // --- RENDER ---
   const activeFolderName = getActiveFolderName();
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
-      <NotesSidebar
-        folders={folders}
-        activeFolderId={activeFolderId}
-        activeWorkspaceId={activeWorkspaceId}
-        workspaces={getCurrentWorkspaces()}
-        customIcons={workspaceIcons}
-        onFolderSelect={handleFolderSelect}
-        onWorkspaceSelect={handleWorkspaceSelect}
-        onCreateFolder={handleCreateFolder}
-        onCreateWorkspace={handleCreateWorkspace}
-        onRenameWorkspace={handleRenameWorkspace}
-        onDeleteWorkspace={handleDeleteWorkspace}
-        onRenameFolder={handleRenameFolder}
-        onDeleteFolder={handleDeleteFolder}
-      />
+    <div className="flex h-full w-full overflow-hidden bg-white">
+      {/* SIDEBAR: Only show on Desktop */}
+      {!isMobile && (
+        <NotesSidebar
+          folders={folders}
+          activeFolderId={activeFolderId}
+          activeWorkspaceId={activeWorkspaceId}
+          workspaces={getCurrentWorkspaces()}
+          customIcons={workspaceIcons}
+          onFolderSelect={handleFolderSelect}
+          onWorkspaceSelect={handleWorkspaceSelect}
+          onCreateFolder={handleCreateFolder}
+          onCreateWorkspace={handleCreateWorkspace}
+          onRenameWorkspace={handleRenameWorkspace}
+          onDeleteWorkspace={handleDeleteWorkspace}
+          onRenameFolder={handleRenameFolder}
+          onDeleteFolder={handleDeleteFolder}
+        />
+      )}
 
-      <main className="flex-1 h-full overflow-hidden flex min-w-0">
-        {!activeFolderId ? (
-          <FolderDashboard
-            folders={folders}
-            onSelect={handleFolderSelect}
-            onRenameFolder={handleRenameFolder}
-            onDeleteFolder={handleDeleteFolder}
-            onCreateFolder={handleCreateFolder}
-          />
-        ) : activeWorkspaceId === "" ? (
-          <WorkspaceDashboard
-            workspaces={getCurrentWorkspaces()}
-            onSelect={handleWorkspaceSelect}
-            onRenameWorkspace={handleRenameWorkspace}
-            onDeleteWorkspace={handleDeleteWorkspace}
-            onBack={handleBackToFolders}
-          />
+      <main className="flex-1 h-full overflow-hidden flex min-w-0 relative">
+        {loading && folders.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center bg-slate-50/30 animate-pulse">
+             <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                <span className="text-sm font-medium text-slate-400">Syncing notes...</span>
+             </div>
+          </div>
         ) : (
           <>
-            <NotesContentPanel
-              folder={activeFolderName!}
-              workspace={getActiveWorkspaceName()}
-              workspaceId={activeWorkspaceId}
-              notes={getCurrentNotes()}
-              createNote={createNote}
-              duplicateNote={duplicateNote}
-              deleteNote={deleteNote}
-              onNoteClick={handleNoteSelect}
-              isDetailOpen={isDetailOpen}
-              activeNoteId={selectedNote?.id}
-              onBack={handleBackToWorkspaces}
-              onRenameWorkspace={handleRenameWorkspace}
-              onReorderNotes={handleReorderNotes}
-            />
-            <AnimatePresence mode="popLayout">
-              {isDetailOpen && (
-                <NoteDetailPanel
-                  key="detail-panel"
-                  note={selectedNote!}
-                  onClose={() => setSelectedNote(null)}
-                  onDelete={deleteNote}
-                  onUpdate={updateNote}
-                  onCreateNew={createNote}
-                />
-              )}
-            </AnimatePresence>
+            {/* PAGE 1: Folder Dashboard (If no folder selected) */}
+            {!activeFolderId && (
+              <FolderDashboard
+                folders={folders}
+                onSelect={handleFolderSelect}
+                onRenameFolder={handleRenameFolder}
+                onDeleteFolder={handleDeleteFolder}
+                onCreateFolder={handleCreateFolder}
+              />
+            )}
+            
+            {/* PAGE 2: Workspace Dashboard (If folder selected but no workspace) */}
+            {activeFolderId && activeWorkspaceId === "" && (
+              <WorkspaceDashboard
+                workspaces={getCurrentWorkspaces()}
+                onSelect={handleWorkspaceSelect}
+                onRenameWorkspace={handleRenameWorkspace}
+                onDeleteWorkspace={handleDeleteWorkspace}
+                onBack={handleBackToFolders}
+                onCreateWorkspace={handleCreateWorkspace}
+              />
+            )}
+
+            {/* PAGE 3: Content Panel (Notes List) */}
+            {activeWorkspaceId !== "" && (!isMobile || !selectedNote) && (
+              <NotesContentPanel
+                folder={activeFolderName!}
+                workspace={getActiveWorkspaceName()}
+                workspaceId={activeWorkspaceId}
+                notes={getCurrentNotes()}
+                createNote={createNote}
+                duplicateNote={duplicateNote}
+                deleteNote={deleteNote}
+                onNoteClick={handleNoteSelect}
+                isDetailOpen={isDetailOpen}
+                activeNoteId={selectedNote?.id}
+                onBack={handleBackToWorkspaces}
+                onRenameWorkspace={handleRenameWorkspace}
+                onReorderNotes={handleReorderNotes}
+                isMobile={isMobile}
+              />
+            )}
           </>
         )}
+
+        {/* PAGE 4: Note Detail (Editor) */}
+        <AnimatePresence mode="popLayout">
+          {selectedNote && (
+            <NoteDetailPanel
+              key="detail-panel"
+              note={selectedNote}
+              onClose={() => setSelectedNote(null)}
+              onDelete={deleteNote}
+              onUpdate={updateNote}
+              onCreateNew={createNote}
+              isMobile={isMobile}
+            />
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

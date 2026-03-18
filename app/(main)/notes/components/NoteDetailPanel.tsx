@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Trash, Plus } from "lucide-react";
+import { X, Trash, Plus, ArrowLeft } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import type { NoteItem } from "./NotesClientWrapper";
 import RichTextEditor from "./text-editor/RichTextEditor";
@@ -13,6 +13,7 @@ type Props = {
   onDelete: (id: string) => void;
   onUpdate: (note: NoteItem) => Promise<void>; // Ubah ke Promise agar bisa ditunggu
   onCreateNew: () => void;
+  isMobile?: boolean;
 };
 
 export default function NoteDetailPanel({
@@ -21,6 +22,7 @@ export default function NoteDetailPanel({
   onDelete,
   onUpdate,
   onCreateNew,
+  isMobile = false,
 }: Props) {
   // Simpan ID sebelumnya untuk mendeteksi perpindahan note
   const prevNoteIdRef = useRef(note.id);
@@ -80,27 +82,24 @@ export default function NoteDetailPanel({
 
   return (
     <motion.div
-      layout
-      initial={{ x: "100%", opacity: 0 }}
+      initial={isMobile ? { opacity: 0 } : { opacity: 0, x: 20 }}
       animate={{ x: 0, opacity: 1 }}
-      exit={{ x: "100%", opacity: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="
-        relative flex-1
-        h-full
-        bg-white border-l p-10
-        overflow-y-auto
-      "
+      exit={isMobile ? { opacity: 0 } : { opacity: 0, x: 20 }}
+      transition={isMobile ? { duration: 0.15 } : { type: "spring", stiffness: 300, damping: 30 }}
+      className={clsx(
+        "bg-white overflow-y-auto outline-none",
+        isMobile ? "fixed inset-0 z-[60] p-6" : "relative flex-1 border-l p-10 h-full"
+      )}
     >
       {/* HEADER: Close, Status, Actions */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <button
             onClick={onClose}
             className="p-1 -ml-1 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
-            title="Close (Esc)"
+            title={isMobile ? "Back" : "Close (Esc)"}
           >
-            <X className="w-6 h-6" />
+            {isMobile ? <ArrowLeft className="w-6 h-6" /> : <X className="w-6 h-6" />}
           </button>
 
           {/* SUBTLE SAVE STATUS */}
@@ -117,23 +116,25 @@ export default function NoteDetailPanel({
         </div>
 
         {/* KANAN: Actions Group */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onCreateNew}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-black hover:bg-slate-100 rounded-md transition"
-          >
-            <Plus className="w-4 h-4" />
-            New Note
-          </button>
+        <div className="flex items-center gap-1 md:gap-2">
+          {!isMobile && (
+            <button
+              onClick={onCreateNew}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-black hover:bg-slate-100 rounded-md transition"
+            >
+              <Plus className="w-4 h-4" />
+              New
+            </button>
+          )}
 
-          <div className="w-px h-4 bg-slate-200 mx-1"></div>
+          {!isMobile && <div className="w-px h-4 bg-slate-200 mx-1"></div>}
 
           <button
             onClick={() => onDelete(note.id)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-md transition"
           >
             <Trash className="w-4 h-4" />
-            Delete
+            <span className="hidden sm:inline">Delete</span>
           </button>
         </div>
       </div>
@@ -144,10 +145,10 @@ export default function NoteDetailPanel({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={handleTitleKeyDown}
-        className="
-          text-4xl font-bold w-full outline-none
-          pb-2 pt-1 leading-tight mb-4 text-slate-900 placeholder:text-slate-300
-        "
+        className={clsx(
+          "font-bold w-full outline-none pb-2 pt-1 leading-tight mb-4 text-slate-900 placeholder:text-slate-300",
+          isMobile ? "text-3xl" : "text-4xl"
+        )}
         placeholder="Untitled"
       />
 
