@@ -70,3 +70,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Prevent body scroll and text selection when dragging notes */
+body.reorder-item-dragging {
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}

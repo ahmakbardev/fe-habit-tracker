@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-// 1. Tambahkan import LucideIcon
 import { Folder, LucideIcon, Hash } from "lucide-react";
 import NotesSidebar from "./NotesSidebar";
 import NotesContentPanel from "./NotesContentPanel";
@@ -12,7 +11,7 @@ import { NoteService, ApiFolder, ApiWorkspace, ApiNote } from "../services/note-
 import { getIconByName, getIconName } from "../utils/icon-utils";
 import { useMediaQuery } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import clsx from "clsx";
+import { AnimatePresence } from "framer-motion";
 
 export type NoteItem = {
   id: string;
@@ -25,55 +24,30 @@ export type NoteItem = {
   location?: string;
 };
 
-import { AnimatePresence } from "framer-motion";
-
 export default function NotesClientWrapper() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  // --- STATE ---
+  // --- 1. SOURCE OF TRUTH (URL) ---
+  const activeFolderId = searchParams.get("folder");
+  const activeWorkspaceId = searchParams.get("workspace") || "";
+  const activeNoteId = searchParams.get("note");
+
+  // --- 2. DATA STATE ---
   const [folders, setFolders] = useState<{ id: string; name: string; icon: LucideIcon }[]>([]);
   const [workspaceIcons, setWorkspaceIcons] = useState<Record<string, LucideIcon>>({});
-  
-  // Ambil state awal dari URL
-  const [activeFolderId, setActiveFolderId] = useState<string | null>(searchParams.get("folder"));
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(searchParams.get("workspace") || "");
-  const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null);
-  
+  const [workspaceNames, setWorkspaceNames] = useState<Record<string, string>>({});
   const [notesData, setNotesData] = useState<Record<string, Record<string, NoteItem[]>>>({});
   const [loading, setLoading] = useState(true);
+  
+  const [noteDetailsCache, setNoteDetailsCache] = useState<Record<string, NoteItem>>({});
+
   const isMobile = useMediaQuery("(max-width: 768px)");
-
-  const isDetailOpen = selectedNote !== null;
-
-  const [workspaceNames, setWorkspaceNames] = useState<Record<string, string>>({});
-
-  // Update URL whenever state changes
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (activeFolderId) params.set("folder", activeFolderId);
-    else params.delete("folder");
-    
-    if (activeWorkspaceId) params.set("workspace", activeWorkspaceId);
-    else params.delete("workspace");
-    
-    if (selectedNote?.id) params.set("note", selectedNote.id);
-    else params.delete("note");
-
-    const newQuery = params.toString();
-    const currentQuery = searchParams.toString();
-    
-    if (newQuery !== currentQuery) {
-      router.replace(`${pathname}?${newQuery}`);
-    }
-  }, [activeFolderId, activeWorkspaceId, selectedNote?.id, pathname, router, searchParams]);
 
   // --- HELPER: Media URL Normalization ---
   const normalizeMediaUrls = useCallback((html: string): string => {
     if (!html) return "";
-    // Temukan src="/uploads/..." dan ganti dengan https://s3.ahmakbar.space/uploads/...
-    // Regex ini menangkap src yang dimulai dengan /uploads/
     return html.replace(/src="\/uploads\//g, 'src="https://s3.ahmakbar.space/uploads/');
   }, []);
 
@@ -86,29 +60,90 @@ export default function NotesClientWrapper() {
     } else if (typeof content === "object" && content !== null) {
       const c = content as { html?: string; type?: string };
       if (c.html) html = c.html;
-      else if (c.type === "doc") html = plainTextFallback; // Tiptap JSON fallback
+      else if (c.type === "doc") html = plainTextFallback;
     }
-    
     return normalizeMediaUrls(html);
   }, [normalizeMediaUrls]);
 
   const stripHtml = useCallback((html: string): string => {
     if (!html) return "- ";
-    const stripped = html
-      .replace(/<[^>]*>?/gm, " ") // Hapus semua tag HTML
-      .replace(/\s+/g, " ")       // Satukan spasi berlebih
-      .trim();
-    
-    return stripped || "- "; // Jika kosong setelah di-strip, kirim placeholder
+    const stripped = html.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+    return stripped || "- ";
   }, []);
 
-  // --- FETCH DATA (Only fetch, don't sync state here) ---
+  // --- 3. DERIVED DATA (Memoized) ---
+  const activeFolderName = useMemo(() => 
+    folders.find(f => f.id === activeFolderId)?.name || null,
+  [folders, activeFolderId]);
+
+  const activeWorkspaceName = useMemo(() => 
+    activeWorkspaceId ? workspaceNames[activeWorkspaceId] || "" : "",
+  [workspaceNames, activeWorkspaceId]);
+
+  const currentWorkspaces = useMemo(() => {
+    if (!activeFolderId || !notesData[activeFolderId]) return [];
+    return Object.keys(notesData[activeFolderId]).map(id => ({
+      id,
+      name: workspaceNames[id] || "Untitled Workspace",
+      icon: workspaceIcons[id] || Hash
+    }));
+  }, [activeFolderId, notesData, workspaceNames, workspaceIcons]);
+
+  const currentNotes = useMemo(() => {
+    if (!activeFolderId || !activeWorkspaceId) return [];
+    return notesData[activeFolderId]?.[activeWorkspaceId] || [];
+  }, [activeFolderId, activeWorkspaceId, notesData]);
+
+  const selectedNote = useMemo(() => {
+    if (!activeNoteId) return null;
+    if (noteDetailsCache[activeNoteId]) return noteDetailsCache[activeNoteId];
+    return currentNotes.find(n => n.id === activeNoteId) || null;
+  }, [activeNoteId, noteDetailsCache, currentNotes]);
+
+  const isDetailOpen = !!activeNoteId;
+
+  // --- 4. NAVIGATION LOGIC (Unified) ---
+  const navigateTo = useCallback((params: { folder?: string | null, workspace?: string | null, note?: string | null }, replace = false) => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    const oldParams = {
+      folder: searchParams.get("folder"),
+      workspace: searchParams.get("workspace"),
+      note: searchParams.get("note")
+    };
+    
+    if (params.folder !== undefined) {
+      if (params.folder) newParams.set("folder", params.folder);
+      else newParams.delete("folder");
+    }
+    if (params.workspace !== undefined) {
+      if (params.workspace) newParams.set("workspace", params.workspace);
+      else newParams.delete("workspace");
+    }
+    if (params.note !== undefined) {
+      if (params.note) newParams.set("note", params.note);
+      else newParams.delete("note");
+    }
+
+    const target = `${pathname}?${newParams.toString()}`;
+    
+    // Logic push vs replace untuk back button yang seamless di mobile
+    const isDeeper = 
+      (!oldParams.folder && params.folder) || 
+      (oldParams.folder && !oldParams.workspace && params.workspace) ||
+      (oldParams.workspace && !oldParams.note && params.note);
+
+    if (isDeeper && isMobile && !replace) {
+      router.push(target);
+    } else {
+      router.replace(target);
+    }
+  }, [pathname, router, searchParams, isMobile]);
+
+  // --- DATA FETCHING ---
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await NoteService.getAll();
-      const data = response;
-
+      const data = await NoteService.getAll();
       if (!Array.isArray(data)) {
         setFolders([]);
         return;
@@ -153,207 +188,46 @@ export default function NotesClientWrapper() {
     }
   }, [extractContentHtml]);
 
-  // --- INITIAL SYNC FROM URL (Run once after data loaded) ---
-  useEffect(() => {
-    if (loading || folders.length === 0) return;
-
-    const targetNoteId = searchParams.get("note");
-    if (targetNoteId && !selectedNote) {
-      // Find note in loaded data
-      for (const fId in notesData) {
-        for (const wsId in notesData[fId]) {
-          const found = notesData[fId][wsId].find(n => n.id === targetNoteId);
-          if (found) {
-            setSelectedNote(found);
-            // Also ensure parent folder/workspace are active
-            setActiveFolderId(fId);
-            setActiveWorkspaceId(wsId);
-            break;
-          }
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, folders.length]); // Only run when loading finishes or folders first appear
-
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
 
-  // --- HELPER GETTERS ---
-  const getActiveFolderName = () => {
-    return folders.find(f => f.id === activeFolderId)?.name || null;
-  };
-
-  const getActiveWorkspaceName = () => {
-    return activeWorkspaceId ? workspaceNames[activeWorkspaceId] || "" : "";
-  };
-
-  const getCurrentWorkspaces = () => {
-    if (!activeFolderId || !notesData[activeFolderId]) return [];
-    return Object.keys(notesData[activeFolderId]).map(id => ({
-      id,
-      name: workspaceNames[id] || "Untitled Workspace",
-      icon: workspaceIcons[id] || Hash
-    }));
-  };
-
-  const getCurrentNotes = (): NoteItem[] => {
-    if (!activeFolderId || !activeWorkspaceId) return [];
-    return notesData[activeFolderId]?.[activeWorkspaceId] || [];
-  };
-
-  // --- HANDLERS UTAMA ---
-
-  const handleBackToFolders = useCallback(() => {
-    setActiveFolderId(null);
-    setActiveWorkspaceId("");
-    setSelectedNote(null);
-  }, []);
-
-  const handleBackToWorkspaces = useCallback(() => {
-    setActiveWorkspaceId("");
-    setSelectedNote(null);
-  }, []);
-
-  const handleCreateFolder = useCallback(async (folderName: string) => {
-    try {
-      const newFolder = await NoteService.createFolder(folderName);
-      setFolders(prev => [...prev, { 
-        id: newFolder.id, 
-        name: newFolder.name, 
-        icon: newFolder.icon_name ? getIconByName(newFolder.icon_name) : Folder 
-      }]);
-      setNotesData(prev => ({ ...prev, [newFolder.id]: {} }));
-      setActiveFolderId(newFolder.id);
-      setActiveWorkspaceId("");
-    } catch (error) {
-      console.error("Failed to create folder:", error);
-    }
-  }, []);
-
-  const handleCreateWorkspace = useCallback(async (wsName: string, icon: LucideIcon) => {
-    if (!activeFolderId) return;
-    try {
-      const iconName = getIconName(icon);
-      const newWs = await NoteService.createWorkspace(activeFolderId, wsName, iconName);
-      setNotesData(prev => ({
-        ...prev,
-        [activeFolderId]: { ...prev[activeFolderId], [newWs.id]: [] }
-      }));
-      setWorkspaceIcons(prev => ({ ...prev, [newWs.id]: icon }));
-      setWorkspaceNames(prev => ({ ...prev, [newWs.id]: wsName }));
-      setActiveWorkspaceId(newWs.id);
-      setSelectedNote(null);
-    } catch (error) {
-      console.error("Failed to create workspace:", error);
-    }
-  }, [activeFolderId]);
-
-  const handleRenameWorkspace = useCallback(async (wsId: string, newName: string) => {
-    try {
-      // Get current icon if any
-      const currentIcon = workspaceIcons[wsId];
-      const iconName = currentIcon ? getIconName(currentIcon) : undefined;
-      
-      await NoteService.updateWorkspace(wsId, newName, iconName);
-      setWorkspaceNames(prev => ({ ...prev, [wsId]: newName }));
-    } catch (error) {
-      console.error("Failed to rename workspace:", error);
-    }
-  }, [workspaceIcons]);
-
-  const handleDeleteWorkspace = useCallback(async (wsId: string) => {
-    try {
-      await NoteService.deleteWorkspace(wsId);
-      setNotesData(prev => {
-        if (!activeFolderId) return prev;
-        const folderData = { ...prev[activeFolderId] };
-        delete folderData[wsId];
-        return { ...prev, [activeFolderId]: folderData };
-      });
-      if (activeWorkspaceId === wsId) {
-        setActiveWorkspaceId("");
-        setSelectedNote(null);
+  // Fetch detail note jika ID berubah
+  useEffect(() => {
+    if (!activeNoteId || noteDetailsCache[activeNoteId]) return;
+    const fetchDetail = async () => {
+      try {
+        const fullNote = await NoteService.getById(activeNoteId);
+        const detailedNote: NoteItem = {
+          id: fullNote.id,
+          workspace_id: fullNote.workspace_id,
+          title: fullNote.title,
+          desc: fullNote.plain_text_preview || "- ",
+          time: new Date(fullNote.updated_at).toLocaleDateString(),
+          content: extractContentHtml(fullNote.content, fullNote.plain_text_preview),
+          highlight: fullNote.highlight
+        };
+        setNoteDetailsCache(prev => ({ ...prev, [activeNoteId]: detailedNote }));
+      } catch (e) {
+        console.error("Failed to fetch note detail", e);
       }
-    } catch (error) {
-      console.error("Failed to delete workspace:", error);
-    }
-  }, [activeFolderId, activeWorkspaceId]);
+    };
+    fetchDetail();
+  }, [activeNoteId, noteDetailsCache, extractContentHtml]);
 
-  const handleRenameFolder = useCallback(async (folderId: string, newName: string) => {
-    try {
-      // Get current icon if any
-      const folder = folders.find(f => f.id === folderId);
-      const iconName = folder?.icon ? getIconName(folder.icon) : undefined;
-      
-      await NoteService.updateFolder(folderId, newName, iconName);
-      setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName } : f));
-    } catch (error) {
-      console.error("Failed to rename folder:", error);
-    }
-  }, [folders]);
-
-  const handleDeleteFolder = useCallback(async (folderId: string) => {
-    try {
-      await NoteService.deleteFolder(folderId);
-      setFolders(prev => prev.filter(f => f.id !== folderId));
-      setNotesData(prev => {
-        const { [folderId]: _, ...rest } = prev;
-        return rest;
-      });
-      if (activeFolderId === folderId) {
-        setActiveFolderId(null);
-        setActiveWorkspaceId("");
-      }
-    } catch (error) {
-      console.error("Failed to delete folder:", error);
-    }
-  }, [activeFolderId]);
-
-  const handleFolderSelect = useCallback((folderId: string) => {
-    setActiveFolderId(folderId);
-    setActiveWorkspaceId("");
-    setSelectedNote(null);
-  }, []);
-
-  const handleWorkspaceSelect = useCallback((wsId: string) => {
-    setActiveWorkspaceId(wsId);
-    setSelectedNote(null);
-  }, []);
-
-  const handleNoteSelect = useCallback(async (noteItem: NoteItem) => {
-    try {
-      setSelectedNote(noteItem);
-      const fullNote = await NoteService.getById(noteItem.id);
-      
-      setSelectedNote({
-        ...noteItem,
-        title: fullNote.title,
-        content: extractContentHtml(fullNote.content, fullNote.plain_text_preview),
-        desc: fullNote.plain_text_preview || "- "
-      });
-    } catch (error) {
-      console.error("Failed to fetch note details:", error);
-    }
-  }, [extractContentHtml]);
-
-  // --- CRUD NOTES ---
+  // --- CRUD HANDLERS (Updated to sync with notesData) ---
   const createNote = useCallback(async () => {
     if (!activeWorkspaceId || !activeFolderId) return;
     try {
       const newNoteApi = await NoteService.createNote(activeWorkspaceId, "Untitled Note");
-      const realId = newNoteApi.id;
-      
       const newNote: NoteItem = {
-        id: realId,
+        id: newNoteApi.id,
         workspace_id: newNoteApi.workspace_id,
         title: newNoteApi.title,
         desc: "- ",
         time: "now",
         content: extractContentHtml(newNoteApi.content)
       };
-      
       setNotesData(prev => ({
         ...prev,
         [activeFolderId]: {
@@ -361,52 +235,44 @@ export default function NotesClientWrapper() {
           [activeWorkspaceId]: [newNote, ...(prev[activeFolderId]?.[activeWorkspaceId] || [])]
         }
       }));
-      setSelectedNote(newNote);
+      navigateTo({ note: newNote.id });
     } catch (error) {
       console.error("Failed to create note:", error);
     }
-  }, [activeFolderId, activeWorkspaceId, extractContentHtml]);
+  }, [activeFolderId, activeWorkspaceId, extractContentHtml, navigateTo]);
 
   const deleteNote = useCallback(async (noteId: string) => {
     try {
       await NoteService.deleteNote(noteId);
-      
       setNotesData(prev => {
         if (!activeFolderId || !activeWorkspaceId) return prev;
-        const folderData = prev[activeFolderId];
-        const wsNotes = folderData[activeWorkspaceId] || [];
-        
+        const wsNotes = prev[activeFolderId][activeWorkspaceId] || [];
         return {
           ...prev,
           [activeFolderId]: {
-            ...folderData,
+            ...prev[activeFolderId],
             [activeWorkspaceId]: wsNotes.filter(n => n.id !== noteId)
           }
         };
       });
-
-      setSelectedNote(current => (current?.id === noteId ? null : current));
-      
+      if (activeNoteId === noteId) navigateTo({ note: null }, true);
     } catch (error) {
       console.error("Failed to delete note:", error);
     }
-  }, [activeFolderId, activeWorkspaceId]);
+  }, [activeFolderId, activeWorkspaceId, activeNoteId, navigateTo]);
 
   const duplicateNote = useCallback(async (note: NoteItem) => {
     if (!activeWorkspaceId || !activeFolderId) return;
     try {
       const newNoteApi = await NoteService.duplicateNote(note.id);
-      const realId = newNoteApi.id;
-
       const copy: NoteItem = {
-        id: realId,
+        id: newNoteApi.id,
         workspace_id: newNoteApi.workspace_id,
         title: newNoteApi.title,
         desc: newNoteApi.plain_text_preview || "- ",
         time: "now",
         content: extractContentHtml(newNoteApi.content, newNoteApi.plain_text_preview)
       };
-      
       setNotesData(prev => ({
         ...prev,
         [activeFolderId]: {
@@ -423,34 +289,34 @@ export default function NotesClientWrapper() {
     try {
       const htmlContent = typeof updated.content === "string" ? updated.content : "";
       const previewText = stripHtml(htmlContent);
-      
       const payload = {
         title: updated.title,
         content: { html: htmlContent },
         plain_text_preview: previewText
       };
-
       const updatedApi = await NoteService.updateNote(updated.id, payload);
       
+      const refreshedNote = {
+        ...updated,
+        desc: updatedApi.plain_text_preview || previewText,
+        time: new Date(updatedApi.updated_at).toLocaleDateString()
+      };
+
       setNotesData(prev => {
         if (!activeFolderId || !activeWorkspaceId) return prev;
-        const folderData = prev[activeFolderId];
-        const wsNotes = folderData[activeWorkspaceId] || [];
-
         return {
           ...prev,
           [activeFolderId]: {
-            ...folderData,
-            [activeWorkspaceId]: wsNotes.map(n =>
-              n.id === updated.id ? {
-                ...updated,
-                desc: updatedApi.plain_text_preview || previewText,
-                time: new Date(updatedApi.updated_at).toLocaleDateString()
-              } : n
+            ...prev[activeFolderId],
+            [activeWorkspaceId]: prev[activeFolderId][activeWorkspaceId].map(n =>
+              n.id === updated.id ? refreshedNote : n
             )
           }
         };
       });
+
+      // Update cache
+      setNoteDetailsCache(prev => ({ ...prev, [updated.id]: refreshedNote }));
     } catch (error) {
       console.error("Failed to update note:", error);
       throw error;
@@ -468,21 +334,81 @@ export default function NotesClientWrapper() {
     }));
   }, [activeFolderId, activeWorkspaceId]);
 
-  // --- RENDER ---
-  const activeFolderName = getActiveFolderName();
+  const handleCreateFolder = useCallback(async (name: string) => {
+    try {
+      const newF = await NoteService.createFolder(name);
+      setFolders(prev => [...prev, { 
+        id: newF.id, name: newF.name, 
+        icon: newF.icon_name ? getIconByName(newF.icon_name) : Folder 
+      }]);
+      setNotesData(prev => ({ ...prev, [newF.id]: {} }));
+      navigateTo({ folder: newF.id, workspace: "", note: null });
+    } catch (e) { console.error(e); }
+  }, [navigateTo]);
+
+  const handleRenameFolder = useCallback(async (id: string, name: string) => {
+    try {
+      const folder = folders.find(f => f.id === id);
+      await NoteService.updateFolder(id, name, folder?.icon ? getIconName(folder.icon) : undefined);
+      setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+    } catch (e) { console.error(e); }
+  }, [folders]);
+
+  const handleDeleteFolder = useCallback(async (id: string) => {
+    try {
+      await NoteService.deleteFolder(id);
+      setFolders(prev => prev.filter(f => f.id !== id));
+      if (activeFolderId === id) navigateTo({ folder: null, workspace: null, note: null }, true);
+    } catch (e) { console.error(e); }
+  }, [activeFolderId, navigateTo]);
+
+  const handleCreateWorkspace = useCallback(async (name: string, icon: LucideIcon) => {
+    if (!activeFolderId) return;
+    try {
+      const iconName = getIconName(icon);
+      const newWs = await NoteService.createWorkspace(activeFolderId, name, iconName);
+      setWorkspaceNames(prev => ({ ...prev, [newWs.id]: name }));
+      setWorkspaceIcons(prev => ({ ...prev, [newWs.id]: icon }));
+      setNotesData(prev => ({
+        ...prev,
+        [activeFolderId]: { ...prev[activeFolderId], [newWs.id]: [] }
+      }));
+      navigateTo({ workspace: newWs.id, note: null });
+    } catch (e) { console.error(e); }
+  }, [activeFolderId, navigateTo]);
+
+  const handleRenameWorkspace = useCallback(async (id: string, name: string) => {
+    try {
+      const icon = workspaceIcons[id];
+      await NoteService.updateWorkspace(id, name, icon ? getIconName(icon) : undefined);
+      setWorkspaceNames(prev => ({ ...prev, [id]: name }));
+    } catch (e) { console.error(e); }
+  }, [workspaceIcons]);
+
+  const handleDeleteWorkspace = useCallback(async (id: string) => {
+    try {
+      await NoteService.deleteWorkspace(id);
+      setNotesData(prev => {
+        if (!activeFolderId) return prev;
+        const newWsData = { ...prev[activeFolderId] };
+        delete newWsData[id];
+        return { ...prev, [activeFolderId]: newWsData };
+      });
+      if (activeWorkspaceId === id) navigateTo({ workspace: null, note: null }, true);
+    } catch (e) { console.error(e); }
+  }, [activeFolderId, activeWorkspaceId, navigateTo]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-white">
-      {/* SIDEBAR: Only show on Desktop */}
       {!isMobile && (
         <NotesSidebar
           folders={folders}
           activeFolderId={activeFolderId}
           activeWorkspaceId={activeWorkspaceId}
-          workspaces={getCurrentWorkspaces()}
+          workspaces={currentWorkspaces}
           customIcons={workspaceIcons}
-          onFolderSelect={handleFolderSelect}
-          onWorkspaceSelect={handleWorkspaceSelect}
+          onFolderSelect={(id) => navigateTo({ folder: id, workspace: "", note: null })}
+          onWorkspaceSelect={(id) => navigateTo({ workspace: id, note: null })}
           onCreateFolder={handleCreateFolder}
           onCreateWorkspace={handleCreateWorkspace}
           onRenameWorkspace={handleRenameWorkspace}
@@ -502,43 +428,40 @@ export default function NotesClientWrapper() {
           </div>
         ) : (
           <>
-            {/* PAGE 1: Folder Dashboard (If no folder selected) */}
             {!activeFolderId && (
               <FolderDashboard
                 folders={folders}
-                onSelect={handleFolderSelect}
+                onSelect={(id) => navigateTo({ folder: id, workspace: "", note: null })}
                 onRenameFolder={handleRenameFolder}
                 onDeleteFolder={handleDeleteFolder}
                 onCreateFolder={handleCreateFolder}
               />
             )}
             
-            {/* PAGE 2: Workspace Dashboard (If folder selected but no workspace) */}
             {activeFolderId && activeWorkspaceId === "" && (
               <WorkspaceDashboard
-                workspaces={getCurrentWorkspaces()}
-                onSelect={handleWorkspaceSelect}
+                workspaces={currentWorkspaces}
+                onSelect={(id) => navigateTo({ workspace: id, note: null })}
                 onRenameWorkspace={handleRenameWorkspace}
                 onDeleteWorkspace={handleDeleteWorkspace}
-                onBack={handleBackToFolders}
+                onBack={() => navigateTo({ folder: null, workspace: null, note: null })}
                 onCreateWorkspace={handleCreateWorkspace}
               />
             )}
 
-            {/* PAGE 3: Content Panel (Notes List) */}
             {activeWorkspaceId !== "" && (!isMobile || !selectedNote) && (
               <NotesContentPanel
                 folder={activeFolderName!}
-                workspace={getActiveWorkspaceName()}
+                workspace={activeWorkspaceName}
                 workspaceId={activeWorkspaceId}
-                notes={getCurrentNotes()}
+                notes={currentNotes}
                 createNote={createNote}
                 duplicateNote={duplicateNote}
                 deleteNote={deleteNote}
-                onNoteClick={handleNoteSelect}
+                onNoteClick={(n) => navigateTo({ note: n.id })}
                 isDetailOpen={isDetailOpen}
-                activeNoteId={selectedNote?.id}
-                onBack={handleBackToWorkspaces}
+                activeNoteId={activeNoteId}
+                onBack={() => navigateTo({ workspace: null, note: null })}
                 onRenameWorkspace={handleRenameWorkspace}
                 onReorderNotes={handleReorderNotes}
                 isMobile={isMobile}
@@ -547,13 +470,12 @@ export default function NotesClientWrapper() {
           </>
         )}
 
-        {/* PAGE 4: Note Detail (Editor) */}
         <AnimatePresence mode="popLayout">
           {selectedNote && (
             <NoteDetailPanel
               key="detail-panel"
               note={selectedNote}
-              onClose={() => setSelectedNote(null)}
+              onClose={() => navigateTo({ note: null })}
               onDelete={deleteNote}
               onUpdate={updateNote}
               onCreateNew={createNote}

@@ -33,7 +33,8 @@ function NoteCard({
   stripHtml,
   folder,
   workspace,
-  isMobile
+  isMobile,
+  isSearching // Add this prop
 }: { 
   note: NoteItem, 
   isActive: boolean, 
@@ -44,7 +45,8 @@ function NoteCard({
   stripHtml: (h: string) => string,
   folder: string,
   workspace: string,
-  isMobile: boolean
+  isMobile: boolean,
+  isSearching: boolean // Add this type
 }) {
   const controls = useDragControls();
   const [copied, setCopied] = useState(false);
@@ -60,19 +62,32 @@ function NoteCard({
   return (
     <Reorder.Item
       value={note}
+      // REMOVED layout prop as it conflicts with Reorder.Group
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      whileDrag={{ 
+        scale: 1.02, 
+        boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        zIndex: 50,
+      }}
       dragListener={false}
       dragControls={controls}
+      dragTransition={{ bounceStiffness: 600, bounceDamping: 30 }}
       className={clsx(
-        "group relative rounded-2xl border cursor-pointer overflow-hidden bg-white touch-none transition-all",
+        "group relative rounded-2xl border cursor-pointer overflow-hidden bg-white touch-none transition-shadow select-none",
         isActive
           ? "ring-2 ring-black border-transparent shadow-md"
-          : "hover:border-slate-300 hover:shadow-md border-slate-200",
+          : "hover:border-slate-300 border-slate-200",
         note.highlight ? "bg-orange-50/50 border-orange-100" : "bg-white",
         isMobile ? "rounded-xl" : "rounded-2xl"
       )}
+      onDragStart={() => document.body.classList.add("reorder-item-dragging")}
+      onDragEnd={() => document.body.classList.remove("reorder-item-dragging")}
     >
       <div className="w-full flex gap-1 md:gap-3">
-        {!isDetailOpen && (
+        {/* Disable drag handle while searching */}
+        {!isDetailOpen && !isSearching && (
           <div
             onPointerDown={(e) => controls.start(e)}
             onClick={(e) => e.stopPropagation()}
@@ -269,7 +284,12 @@ export default function NotesContentPanel({
             )}
           </div>
         ) : (
-          <Reorder.Group axis="y" values={filteredNotes} onReorder={onReorderNotes} className="flex flex-col gap-4">
+          <Reorder.Group 
+            axis="y" 
+            values={notes} 
+            onReorder={onReorderNotes} 
+            className="flex flex-col gap-4"
+          >
             {filteredNotes.map((note) => (
               <NoteCard
                 key={note.id}
@@ -283,6 +303,7 @@ export default function NotesContentPanel({
                 folder={folder}
                 workspace={workspace}
                 isMobile={isMobile}
+                isSearching={!!searchQuery} // Pass isSearching here
               />
             ))}
           </Reorder.Group>

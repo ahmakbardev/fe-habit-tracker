@@ -95,18 +95,19 @@ export default function ImageResizer({
   };
 
   // --- HANDLER RESIZE ---
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
+    // e.preventDefault(); // Jangan preventDefault di touch agar tidak mematikan scroll jika tidak sengaja kena handle
     e.stopPropagation();
 
-    const startX = e.clientX;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const startX = clientX;
     const startWidth = selectedImage ? selectedImage.clientWidth : 0;
     const container = editorRef.current?.parentElement;
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
+    const onMove = (moveEvent: MouseEvent | TouchEvent) => {
       if (!selectedImage || !container) return;
 
-      const currentX = moveEvent.clientX;
+      const currentX = "touches" in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
       const diffX = currentX - startX;
       let newWidth = startWidth + diffX;
 
@@ -127,14 +128,18 @@ export default function ImageResizer({
       });
     };
 
-    const onMouseUp = () => {
+    const onEnd = () => {
       onResizeEnd();
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onEnd);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
     };
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onEnd);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
   };
 
   if (!selectedImage) return null;
@@ -174,7 +179,8 @@ export default function ImageResizer({
 
       {/* Resize Handle */}
       <div
-        onMouseDown={handleMouseDown}
+        onMouseDown={handleStart}
+        onTouchStart={handleStart}
         className="absolute -right-1.5 -bottom-1.5 w-4 h-4 bg-blue-500 border-2 border-white rounded-full cursor-nwse-resize pointer-events-auto shadow-sm"
       />
     </div>

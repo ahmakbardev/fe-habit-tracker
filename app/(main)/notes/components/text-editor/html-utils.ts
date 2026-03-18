@@ -226,6 +226,7 @@ export const ensureCheckboxInLi = (li: HTMLLIElement | Element) => {
   if (!hasCheckbox) {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
+    checkbox.contentEditable = "false"; // Agar checkbox bisa diklik di dalam contentEditable
     
     // [UPDATE] Gunakan class generic saja, styling detail kita pindah ke RichTextEditor
     // "select-none" penting agar checkbox tidak ikut ter-highlight saat blok teks
