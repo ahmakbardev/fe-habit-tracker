@@ -1,11 +1,11 @@
 // app/(main)/habits/components/habit-types.ts
 
 export type Habit = {
-  id: number;
+  id: string;
   name: string;
   iconType: string;
   color: string;
   goal: number;
-  createdAt: Date;
+  createdAt: string;
   schedules: string[];
 };

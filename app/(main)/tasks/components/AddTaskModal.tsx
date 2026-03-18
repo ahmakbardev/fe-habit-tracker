@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Calendar, Clock, AlertCircle, Check } from "lucide-react";
 import { TaskItem, TaskStatus, KanbanColumn } from "./task-types";
 import clsx from "clsx";
@@ -20,6 +20,11 @@ export default function AddTaskModal({
   columns,
   defaultStatus,
 }: AddTaskModalProps) {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskStatus>(defaultStatus || columns[0]?.id || "todo");
@@ -27,7 +32,7 @@ export default function AddTaskModal({
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
 
-  if (!isOpen) return null;
+  if (!isOpen || !hasMounted) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +57,10 @@ export default function AddTaskModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div 
         className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

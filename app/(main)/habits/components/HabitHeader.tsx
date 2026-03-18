@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { formatDateLocal } from "@/lib/utils";
 import { Habit } from "./habit-types";
+import { useMediaQuery } from "@/lib/utils";
+import clsx from "clsx";
 
 type Props = {
   view: "Week" | "Month";
@@ -29,6 +31,8 @@ export default function HabitHeader({
   habits = [],
   completionData = {},
 }: Props) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
   // 1. Helper untuk mendapatkan range Senin - Minggu dari selectedDate
   const getWeekRange = (date: Date) => {
     const d = new Date(date);
@@ -111,6 +115,73 @@ export default function HabitHeader({
   };
 
   const progress = calculateTotalProgress();
+
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        {/* Mobile Header Row 1: Date Navigation */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleNavigation(-1)}
+              className="p-1.5 border border-slate-200 rounded-full bg-white shadow-sm hover:bg-slate-50 transition-colors active:scale-90"
+            >
+              <ChevronLeft size={18} className="text-slate-600" />
+            </button>
+            <h2 className="text-sm font-black text-slate-800 tracking-tight whitespace-nowrap">
+              {view === "Week"
+                ? formatDateRange()
+                : `${selectedDate.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}`}
+            </h2>
+            <button
+              onClick={() => handleNavigation(1)}
+              className="p-1.5 border border-slate-200 rounded-full bg-white shadow-sm hover:bg-slate-50 transition-colors active:scale-90"
+            >
+              <ChevronRight size={18} className="text-slate-600" />
+            </button>
+          </div>
+          
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            {(["Week", "Month"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setView(tab)}
+                className={clsx(
+                  "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all",
+                  view === tab
+                    ? "bg-white shadow-sm text-blue-600"
+                    : "text-slate-500"
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Mobile Progress Bar Row */}
+        <div className="space-y-1.5">
+          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 transition-all duration-1000 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+            <span className="text-green-600">
+              {progress > 0 ? `↑ ${progress}%` : `0%`}
+            </span>
+            <span className="text-slate-400">
+              {progress}% Achieved
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

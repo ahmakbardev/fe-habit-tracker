@@ -33,7 +33,7 @@ export default function FloatingMenu() {
   const active = mobileItems.find(item => pathname.startsWith(item.href))?.key || "Home";
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 500);
+    const check = () => setIsMobile(window.innerWidth < 768);
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
