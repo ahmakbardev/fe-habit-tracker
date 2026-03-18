@@ -87,19 +87,9 @@ export default function PushNotificationManager() {
     }
   };
 
-  // If permission is already granted, show a small test button instead of the full prompt
+  // If permission is already granted, don't show anything (removed test button)
   if (permissionStatus === 'granted') {
-    return (
-      <motion.button
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 1, scale: 1 }}
-        onClick={triggerTestNotification}
-        className="fixed bottom-24 right-6 w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl border border-slate-800 flex items-center justify-center hover:bg-slate-800 transition-all z-[998]"
-        title="Test Notification"
-      >
-        <Bell size={20} className="text-purple-400" />
-      </motion.button>
-    );
+    return null;
   }
 
   if (permissionStatus === 'unsupported' || !showPrompt) {
