@@ -288,6 +288,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
       const anchorNode = sel.anchorNode;
       if (anchorNode?.nodeType === 3 && anchorNode.parentElement) {
+        // Ambil teks persis sebelum kursor
         const textBeforeCaret = anchorNode.textContent?.slice(0, sel.anchorOffset) || "";
         const trimmedText = textBeforeCaret.trim();
 
@@ -296,6 +297,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
           e.preventDefault();
           const range = document.createRange();
           // Cari posisi awal dari prefix (misal '#' atau '1.')
+          // Kita cari index terakhir dari trimmedText dalam textBeforeCaret
           const startPos = textBeforeCaret.lastIndexOf(trimmedText);
           range.setStart(anchorNode, startPos);
           range.setEnd(anchorNode, sel.anchorOffset);
@@ -324,8 +326,14 @@ export default function RichTextEditor({ value, onChange }: Props) {
           triggerToggle("h1");
           return;
         }
+        
+        // 4. HEADING 2 ("## " -> <h2>)
+        if (trimmedText === "##") {
+          triggerToggle("h2");
+          return;
+        }
 
-        // 4. BLOCKQUOTE ("> " -> <blockquote>)
+        // 5. BLOCKQUOTE ("> " -> <blockquote>)
         if (trimmedText === ">") {
           triggerToggle("blockquote");
           return;
