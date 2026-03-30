@@ -264,7 +264,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   // --- MARKDOWN SHORTCUTS & TABLE TAB HANDLER ---
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // 1. DETEKSI TAB DI DALAM TABLE
+    // 1. DETEKSI TAB (Table & List Indentation)
     if (e.key === "Tab") {
       const sel = window.getSelection();
       const node = sel?.anchorNode;
@@ -272,10 +272,23 @@ export default function RichTextEditor({ value, onChange }: Props) {
         node?.nodeType === 3 ? node.parentElement : node
       ) as HTMLElement;
 
+      // Logic Table
       const cell = element?.closest("td, th");
-
       if (cell && cell instanceof HTMLElement) {
         handleTableTab(e, cell);
+        onChange(ref.current?.innerHTML || "");
+        return;
+      }
+
+      // [NEW] Logic List Indentation (Tab / Shift+Tab)
+      const li = element?.closest("li");
+      if (li) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          document.execCommand("outdent");
+        } else {
+          document.execCommand("indent");
+        }
         onChange(ref.current?.innerHTML || "");
         return;
       }

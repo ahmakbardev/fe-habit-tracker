@@ -3,7 +3,6 @@
  * Specifically designed for the paste functionality in RichTextEditor
  */
 export const markdownToHtml = (markdown: string): string => {
-  // Pecah berdasarkan baris dan bersihkan spasi di akhir setiap baris
   const lines = markdown.split(/\r?\n/);
   const result: string[] = [];
   let inList = false;
@@ -50,7 +49,8 @@ export const markdownToHtml = (markdown: string): string => {
       }
 
       if (isTaskList) {
-        result.push(`<li><input type="checkbox" class="task-checkbox select-none"${isChecked ? ' checked="true"' : ''}>${content}</li>`);
+        // [FIX] Bungkus content dalam <span> agar tidak pecah saat flex di li
+        result.push(`<li><input type="checkbox" class="task-checkbox select-none"${isChecked ? ' checked="true"' : ''}><span>${content}</span></li>`);
       } else {
         result.push(`<li>${content}</li>`);
       }
@@ -65,7 +65,6 @@ export const markdownToHtml = (markdown: string): string => {
 
     // 4. Baris Kosong
     if (trimmedLine === '') {
-      // Hanya tambahkan break jika baris sebelumnya bukan block element atau jika ada banyak baris kosong
       if (result.length > 0 && !result[result.length - 1].endsWith('>')) {
         result.push('<br>');
       }
