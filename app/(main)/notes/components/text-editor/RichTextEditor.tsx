@@ -3,13 +3,14 @@
 import { useRef, useEffect, useState } from "react";
 import Toolbar from "./Toolbar";
 import ImageResizer from "./ImageResizer";
-import { toggleBlockType, toggleList, toggleOrderedList } from "./html-utils";
+import { toggleBlockType, toggleList, toggleOrderedList, insertHTML } from "./html-utils";
 import { Heading1, List, ListOrdered, Quote } from "lucide-react";
 import TableBubbleMenu from "./TableBubbleMenu";
 import { handleTableTab } from "./table-utils";
 import { ensureCheckboxInLi } from "./html-utils";
 import { moveCaretToEnd } from "./caret-utils";
 import { useMediaQuery } from "@/lib/utils";
+import { markdownToHtml, isMarkdown } from "./markdown-utils";
 
 // --- [UPDATED] RICH EMPTY STATE ---
 const EmptyState = () => (
@@ -333,6 +334,21 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
   };
 
+  // --- [NEW] ON PASTE HANDLER ---
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData("text/plain");
+    
+    // Jika content yang di-paste adalah Markdown
+    if (isMarkdown(text)) {
+      e.preventDefault();
+      const html = markdownToHtml(text);
+      insertHTML(html);
+      
+      if (ref.current) onChange(ref.current.innerHTML);
+    }
+    // Jika bukan markdown, biarkan browser menangani default paste (untuk HTML/Plain text biasa)
+  };
+
   return (
     <div className="relative w-full group min-h-[60vh]">
       {/* [UPDATED] STICKY TOOLBAR */}
@@ -406,6 +422,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
         contentEditable
         suppressContentEditableWarning
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         // [PERBAIKAN] Pasang handler Click & KeyUp untuk Checklist
         onClick={handleClick}
         onKeyUp={handleKeyUp}
@@ -422,6 +439,9 @@ export default function RichTextEditor({ value, onChange }: Props) {
             /* --- TYPOGRAPHY STYLES --- */
             [&_.text-left]:text-left [&_.text-center]:text-center [&_.text-right]:text-right [&_.text-justify]:text-justify
             [&_h1]:text-4xl [&_h1]:font-extrabold [&_h1]:text-slate-900 [&_h1]:mb-4 [&_h1]:mt-6 [&_h1]:block [&_h1]:!leading-tight
+            [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-slate-800 [&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:block
+            [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:block
+            [&_hr]:my-6 [&_hr]:border-slate-200
             [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500 [&_blockquote]:bg-slate-50 [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_blockquote]:rounded-r
             
             /* --- [NEW] MODERN CHECKBOX STYLES --- */

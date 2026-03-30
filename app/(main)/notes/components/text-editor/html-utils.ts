@@ -114,11 +114,21 @@ export const insertHTML = (html: string) => {
   
   const div = document.createElement("div");
   div.innerHTML = html.trim();
-  const node = div.firstChild;
   
-  if (node) {
-    range.insertNode(node);
-    range.collapse(false);
+  const fragment = document.createDocumentFragment();
+  while (div.firstChild) {
+    fragment.appendChild(div.firstChild);
+  }
+  
+  const lastNode = fragment.lastChild;
+  range.insertNode(fragment);
+  
+  if (lastNode) {
+    const newRange = document.createRange();
+    newRange.setStartAfter(lastNode);
+    newRange.setEndAfter(lastNode);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
   }
 };
 
