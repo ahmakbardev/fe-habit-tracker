@@ -27,10 +27,18 @@ export default function NoteDetailPanel({
   // Simpan ID sebelumnya untuk mendeteksi perpindahan note
   const prevNoteIdRef = useRef(note.id);
 
+  // Helper untuk memastikan content adalah string HTML
+  const getInitialBody = (note: NoteItem) => {
+    if (typeof note.content === "string") return note.content;
+    if (note.content && typeof note.content === "object") {
+      const c = note.content as { html?: string };
+      if (c.html) return c.html;
+    }
+    return note.desc || "";
+  };
+
   const [title, setTitle] = useState(note.title || "");
-  const [body, setBody] = useState<string>(
-    typeof note.content === "string" ? note.content : note.desc || ""
-  );
+  const [body, setBody] = useState<string>(getInitialBody(note));
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -39,7 +47,7 @@ export default function NoteDetailPanel({
   useEffect(() => {
     if (prevNoteIdRef.current !== note.id) {
       setTitle(note.title || "");
-      setBody(typeof note.content === "string" ? note.content : note.desc || "");
+      setBody(getInitialBody(note));
       setSaveStatus("saved");
       prevNoteIdRef.current = note.id;
     }

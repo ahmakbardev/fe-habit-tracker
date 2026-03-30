@@ -170,7 +170,10 @@ export default function RichTextEditor({ value, onChange }: Props) {
   useEffect(() => {
     if (ref.current) {
       if (!editorEl) setEditorEl(ref.current);
-      if (ref.current.innerHTML !== value) {
+      
+      const currentValue = typeof value === "string" ? value : "";
+      
+      if (ref.current.innerHTML !== currentValue) {
         // [FIX UTAMA: LOGIC FOCUS]
         // Cek apakah user sedang fokus di editor ATAU di element anak (checkbox/input)
         const currentFocus = document.activeElement;
@@ -180,7 +183,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
         // Jika fokus ada di dalam editor (termasuk checkbox), JANGAN timpa HTML
         if (!isActive) {
-          ref.current.innerHTML = value;
+          ref.current.innerHTML = currentValue;
         }
       }
     }
@@ -208,7 +211,10 @@ export default function RichTextEditor({ value, onChange }: Props) {
       }
 
       // PENTING: Trigger onChange manual agar parent tau HTML berubah
-      if (ref.current) onChange(ref.current.innerHTML);
+      if (ref.current) {
+        const newHtml = ref.current.innerHTML;
+        onChange(newHtml);
+      }
     }
   };
 
@@ -493,9 +499,15 @@ export default function RichTextEditor({ value, onChange }: Props) {
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         onInput={(e) => {
+          // [FIX] Hanya tangani event jika targetnya adalah editor itu sendiri
+          // Ini mencegah bubbling event dari child input (checkbox) yang punya innerHTML kosong
+          if (e.target !== ref.current) return;
+
           const html = (e.target as HTMLDivElement).innerHTML;
           const cleanHtml = html === "<br>" ? "" : html;
-          if (cleanHtml !== value) onChange(cleanHtml);
+          
+          const currentValue = typeof value === "string" ? value : "";
+          if (cleanHtml !== currentValue) onChange(cleanHtml);
         }}
         className="
             rte w-full outline-none text-slate-700 leading-relaxed pb-20 relative z-10 px-2
