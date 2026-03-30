@@ -205,12 +205,8 @@ export default function NotesContentPanel({
   return (
     <motion.div 
       layout
-      animate={!isMobile ? { 
-        width: isDetailOpen ? 320 : "100%",
-        flex: isDetailOpen ? "0 0 320px" : "1 1 0%"
-      } : { width: "100%" }}
       className={clsx(
-        "relative h-full overflow-y-auto bg-white border-r transition-colors",
+        "relative h-full w-full overflow-y-auto bg-white border-r transition-colors",
         isDetailOpen ? "px-4 py-6" : "px-6 md:px-10 py-10"
       )}
     >

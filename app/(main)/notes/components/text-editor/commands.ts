@@ -16,15 +16,22 @@ export const cmdBold = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat(
 export const cmdItalic = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("italic"); onChange(ref.current?.innerHTML || ""); };
 export const cmdUnderline = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("underline"); onChange(ref.current?.innerHTML || ""); };
 
+// --- HISTORY ---
+export const cmdUndo = (ref: EditorRef, onChange: OnChangeFn) => { document.execCommand("undo"); onChange(ref.current?.innerHTML || ""); };
+export const cmdRedo = (ref: EditorRef, onChange: OnChangeFn) => { document.execCommand("redo"); onChange(ref.current?.innerHTML || ""); };
+
 // --- CODE ---
 export const cmdCode = (ref: EditorRef, onChange: OnChangeFn) => {
   toggleCode(); 
   onChange(ref.current?.innerHTML || "");
 };
 
-// --- BLOCKS ---
+// ... BLOCKS ---
 export const cmdHeading1 = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockType("h1"); onChange(ref.current?.innerHTML || ""); };
+export const cmdHeading2 = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockType("h2"); onChange(ref.current?.innerHTML || ""); };
+export const cmdHeading3 = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockType("h3"); onChange(ref.current?.innerHTML || ""); };
 export const cmdBlockquote = (ref: EditorRef, onChange: OnChangeFn) => { toggleBlockType("blockquote"); onChange(ref.current?.innerHTML || ""); };
+
 export const cmdListItem = (ref: EditorRef, onChange: OnChangeFn) => { toggleList(); onChange(ref.current?.innerHTML || ""); };
 export const cmdOrderedList = (ref: EditorRef, onChange: OnChangeFn) => { toggleOrderedList(); onChange(ref.current?.innerHTML || ""); };
 

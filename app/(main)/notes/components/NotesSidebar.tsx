@@ -106,7 +106,7 @@ export default function NotesSidebar({
   };
 
   return (
-    <aside className="h-full w-[240px] bg-white border-r border-slate-200 flex flex-col justify-between z-20 flex-shrink-0">
+    <aside className="h-full w-full bg-white border-r border-slate-200 flex flex-col justify-between z-20 flex-shrink-0">
       <div>
         {/* FOLDER SWITCHER */}
         <Popover
