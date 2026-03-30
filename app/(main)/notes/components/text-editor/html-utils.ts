@@ -28,26 +28,32 @@ const getSelectedBlockElement = (): HTMLElement | null => {
 export const toggleFormat = (format: string) => {
   document.execCommand(format, false, undefined);
 };
-
 // --- LOGIC H1 & BLOCKQUOTE ---
 export const toggleBlockType = (tagName: string) => {
   saveCaretManually();
   const block = getSelectedBlockElement();
-  
+
   // Jika belum punya block (text telanjang), format langsung
   if (!block) {
     document.execCommand("formatBlock", false, tagName);
     return;
   }
 
-  // Toggle Logic: Jika sudah H1 -> Balikin jadi P, Jika belum -> Jadi H1
+  // Toggle Logic: Jika sudah H1 -> Balikin jadi DIV (default editor), Jika belum -> Jadi H1
   const currentTag = block.tagName.toLowerCase();
   const targetTag = tagName.toLowerCase();
-  const finalTag = currentTag === targetTag ? "p" : tagName;
 
-  document.execCommand("formatBlock", false, finalTag);
+  // Jika tag saat ini sama dengan target, kita "reset" ke DIV
+  if (currentTag === targetTag) {
+    document.execCommand("formatBlock", false, "div");
+  } else {
+    document.execCommand("formatBlock", false, tagName);
+  }
+
   setTimeout(restoreCaretManually, 0);
 };
+
+// ... LOGIC CODE ...
 
 // --- LOGIC ALIGNMENT (ANTI-NESTING) ---
 export const toggleBlockClass = (className: string, groupClasses: string[]) => {

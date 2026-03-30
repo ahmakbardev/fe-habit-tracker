@@ -102,6 +102,7 @@ export const isMarkdown = (text: string): boolean => {
   const markdownPatterns = [
     /^# /m,
     /^## /m,
+    /^### /m,
     /^---$/m,
     /^[\*-] /m,
     /^\d+\. /m,

@@ -22,6 +22,8 @@ import {
   TableIcon,
   Baseline,
   SquareCheck,
+  Undo,
+  Redo,
 } from "lucide-react";
 
 import ToolbarButton from "./ToolbarButton";
@@ -45,6 +47,8 @@ import {
   cmdTextColor,
   cmdHighlight,
   cmdChecklist,
+  cmdUndo,
+  cmdRedo,
 } from "./commands";
 import { restoreCaretManually, saveCaretManually } from "./caret-utils";
 import ImagePopover from "./popovers/ImagePopover";
@@ -80,6 +84,12 @@ export default function Toolbar({ refEl, onChange }: Props) {
 
   return (
     <div className="flex gap-2 mb-3 pb-2 items-center flex-wrap">
+      {/* HISTORY */}
+      <ToolbarButton icon={<Undo size={18} />} onClick={() => run(cmdUndo)} />
+      <ToolbarButton icon={<Redo size={18} />} onClick={() => run(cmdRedo)} />
+
+      <div className="w-[1px] h-6 bg-slate-200 mx-1" />
+
       {/* FORMATTING */}
       <ToolbarButton icon={<Bold size={18} />} onClick={() => run(cmdBold)} />
       <ToolbarButton

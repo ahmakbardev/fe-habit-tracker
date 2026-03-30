@@ -7,11 +7,14 @@ import NotesContentPanel from "./NotesContentPanel";
 import NoteDetailPanel from "./NoteDetailPanel";
 import WorkspaceDashboard from "./WorkspaceDashboard";
 import FolderDashboard from "./FolderDashboard";
+import Resizer from "./Resizer";
 import { NoteService, ApiFolder, ApiWorkspace, ApiNote } from "../services/note-service";
 import { getIconByName, getIconName } from "../utils/icon-utils";
 import { useMediaQuery } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronRight } from "lucide-react";
+import clsx from "clsx";
 
 export type NoteItem = {
   id: string;
@@ -44,6 +47,39 @@ export default function NotesClientWrapper() {
   const [noteDetailsCache, setNoteDetailsCache] = useState<Record<string, NoteItem>>({});
 
   const isMobile = useMediaQuery("(max-width: 768px)");
+
+  // --- [NEW] RESIZABLE & COLLAPSIBLE STATE ---
+  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [contentWidth, setContentWidth] = useState(320);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isContentCollapsed, setIsContentCollapsed] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const MIN_SIDEBAR_WIDTH = 180;
+  const MIN_CONTENT_WIDTH = 240;
+
+  const handleSidebarResize = useCallback((deltaX: number) => {
+    setSidebarWidth(prev => {
+      const newWidth = prev + deltaX;
+      // Jika ditarik terlalu kecil, otomatis collapse
+      if (newWidth < 100) {
+        setIsSidebarCollapsed(true);
+        return 240;
+      }
+      return Math.min(Math.max(newWidth, MIN_SIDEBAR_WIDTH), 400);
+    });
+  }, []);
+
+  const handleContentResize = useCallback((deltaX: number) => {
+    setContentWidth(prev => {
+      const newWidth = prev + deltaX;
+      if (newWidth < 100) {
+        setIsContentCollapsed(true);
+        return 320;
+      }
+      return Math.min(Math.max(newWidth, MIN_CONTENT_WIDTH), 500);
+    });
+  }, []);
 
   // --- HELPER: Media URL Normalization ---
   const normalizeMediaUrls = useCallback((html: string): string => {
@@ -421,23 +457,50 @@ export default function NotesClientWrapper() {
   }, [activeFolderId, activeWorkspaceId, navigateTo]);
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-white">
+    <div className="flex h-full w-full overflow-hidden bg-white relative">
+      {/* SIDEBAR EXPAND TRIGGER (Only when collapsed) */}
+      {!isMobile && isSidebarCollapsed && (
+        <button 
+          onClick={() => setIsSidebarCollapsed(false)}
+          className="absolute left-0 top-6 z-[60] bg-white border border-l-0 border-slate-200 p-1.5 rounded-r-md shadow-sm hover:bg-slate-50 transition-colors"
+        >
+          <ChevronRight size={16} className="text-slate-500" />
+        </button>
+      )}
+
       {!isMobile && (
-        <NotesSidebar
-          folders={folders}
-          activeFolderId={activeFolderId}
-          activeWorkspaceId={activeWorkspaceId}
-          workspaces={currentWorkspaces}
-          customIcons={workspaceIcons}
-          onFolderSelect={(id) => navigateTo({ folder: id, workspace: "", note: null })}
-          onWorkspaceSelect={(id) => navigateTo({ workspace: id, note: null })}
-          onCreateFolder={handleCreateFolder}
-          onCreateWorkspace={handleCreateWorkspace}
-          onRenameWorkspace={handleRenameWorkspace}
-          onDeleteWorkspace={handleDeleteWorkspace}
-          onRenameFolder={handleRenameFolder}
-          onDeleteFolder={handleDeleteFolder}
-        />
+        <div 
+          style={{ width: isSidebarCollapsed ? 0 : sidebarWidth }} 
+          className={clsx(
+            "relative h-full flex-shrink-0 group/sidebar",
+            !isResizing && "transition-[width] duration-300 ease-in-out"
+          )}
+        >
+          <div className={isSidebarCollapsed ? "hidden" : "h-full w-full overflow-hidden"}>
+            <NotesSidebar
+              folders={folders}
+              activeFolderId={activeFolderId}
+              activeWorkspaceId={activeWorkspaceId}
+              workspaces={currentWorkspaces}
+              customIcons={workspaceIcons}
+              onFolderSelect={(id) => navigateTo({ folder: id, workspace: "", note: null })}
+              onWorkspaceSelect={(id) => navigateTo({ workspace: id, note: null })}
+              onCreateFolder={handleCreateFolder}
+              onCreateWorkspace={handleCreateWorkspace}
+              onRenameWorkspace={handleRenameWorkspace}
+              onDeleteWorkspace={handleDeleteWorkspace}
+              onRenameFolder={handleRenameFolder}
+              onDeleteFolder={handleDeleteFolder}
+            />
+          </div>
+          {!isSidebarCollapsed && (
+            <Resizer 
+              onResize={handleSidebarResize} 
+              onResizeStart={() => setIsResizing(true)}
+              onResizeEnd={() => setIsResizing(false)}
+            />
+          )}
+        </div>
       )}
 
       <main className="flex-1 h-full overflow-hidden flex min-w-0 relative">
@@ -472,38 +535,72 @@ export default function NotesClientWrapper() {
             )}
 
             {activeWorkspaceId !== "" && (!isMobile || !selectedNote) && (
-              <NotesContentPanel
-                folder={activeFolderName!}
-                workspace={activeWorkspaceName}
-                workspaceId={activeWorkspaceId}
-                notes={currentNotes}
-                createNote={createNote}
-                duplicateNote={duplicateNote}
-                deleteNote={deleteNote}
-                toggleHighlight={toggleHighlight}
-                onNoteClick={(n) => navigateTo({ note: n.id })}
-                isDetailOpen={isDetailOpen}
-                activeNoteId={activeNoteId}
-                onBack={() => navigateTo({ workspace: null, note: null })}
-                onRenameWorkspace={handleRenameWorkspace}
-                onReorderNotes={handleReorderNotes}
-                isMobile={isMobile}
-              />
+              <div 
+                style={{ width: isContentCollapsed ? 48 : contentWidth }}
+                className={clsx(
+                  "relative h-full flex-shrink-0 border-r border-slate-200 group/content",
+                  !isResizing && "transition-[width] duration-300 ease-in-out"
+                )}
+              >
+                {isContentCollapsed ? (
+                  <div className="h-full w-full flex flex-col items-center py-6 gap-4 bg-slate-50/50">
+                    <button 
+                      onClick={() => setIsContentCollapsed(false)}
+                      className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                      title="Expand List"
+                    >
+                      <ChevronRight size={20} className="text-slate-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <NotesContentPanel
+                    folder={activeFolderName!}
+                    workspace={activeWorkspaceName}
+                    workspaceId={activeWorkspaceId}
+                    notes={currentNotes}
+                    createNote={createNote}
+                    duplicateNote={duplicateNote}
+                    deleteNote={deleteNote}
+                    toggleHighlight={toggleHighlight}
+                    onNoteClick={(n) => navigateTo({ note: n.id })}
+                    isDetailOpen={isDetailOpen}
+                    activeNoteId={activeNoteId}
+                    onBack={() => navigateTo({ workspace: null, note: null })}
+                    onRenameWorkspace={handleRenameWorkspace}
+                    onReorderNotes={handleReorderNotes}
+                    isMobile={isMobile}
+                  />
+                )}
+                {!isContentCollapsed && !isMobile && (
+                   <Resizer 
+                    onResize={handleContentResize} 
+                    onResizeStart={() => setIsResizing(true)}
+                    onResizeEnd={() => setIsResizing(false)}
+                   />
+                )}
+              </div>
             )}
           </>
         )}
 
         <AnimatePresence mode="popLayout">
           {selectedNote && (
-            <NoteDetailPanel
-              key="detail-panel"
-              note={selectedNote}
-              onClose={() => navigateTo({ note: null })}
-              onDelete={deleteNote}
-              onUpdate={updateNote}
-              onCreateNew={createNote}
-              isMobile={isMobile}
-            />
+            <motion.div 
+              key="detail-container"
+              className="flex-1 h-full min-w-0 overflow-hidden"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+            >
+              <NoteDetailPanel
+                note={selectedNote}
+                onClose={() => navigateTo({ note: null })}
+                onDelete={deleteNote}
+                onUpdate={updateNote}
+                onCreateNew={createNote}
+                isMobile={isMobile}
+              />
+            </motion.div>
           )}
         </AnimatePresence>
       </main>

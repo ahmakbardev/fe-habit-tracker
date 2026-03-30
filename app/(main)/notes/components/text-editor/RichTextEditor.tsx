@@ -11,6 +11,8 @@ import { ensureCheckboxInLi } from "./html-utils";
 import { moveCaretToEnd } from "./caret-utils";
 import { useMediaQuery } from "@/lib/utils";
 import { markdownToHtml, isMarkdown } from "./markdown-utils";
+import TextBubbleMenu from "./TextBubbleMenu";
+import { createPortal } from "react-dom";
 
 // --- [UPDATED] RICH EMPTY STATE ---
 const EmptyState = () => (
@@ -79,6 +81,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [editorEl, setEditorEl] = useState<HTMLDivElement | null>(null);
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [mounted, setMounted] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   // State untuk active table menu
@@ -86,6 +89,11 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   // State untuk tracking focus & content (Empty State Logic)
   const [isFocused, setIsFocused] = useState(false);
+  const [isInsideList, setIsInsideList] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // [FIX] Pastikan value adalah string sebelum melakukan operasi string
   const safeValue = typeof value === "string" ? value : "";
@@ -240,30 +248,66 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   useEffect(() => {
     const handleSelectionChange = () => {
-      if (!isMobile) return; // Hanya di mobile
       const sel = window.getSelection();
+      
+      // Jika selection kosong, hilang, atau di luar editor
       if (!sel || sel.isCollapsed || !ref.current?.contains(sel.anchorNode)) {
         setFloatingMenu(null);
         return;
       }
 
+      // Cek apakah selection berada di dalam list (untuk context menu)
+      const anchorParent = sel.anchorNode?.parentElement;
+      const insideList = !!anchorParent?.closest("li");
+      setIsInsideList(insideList);
+
       const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+      const rects = range.getClientRects();
+      if (rects.length === 0) return;
+
+      // Ambil baris pertama seleksi untuk posisi Y yang akurat
+      const firstRect = rects[0];
+      const editorRect = ref.current?.getBoundingClientRect();
       
-      if (rect.width > 0 && rect.height > 0) {
-        setFloatingMenu({
-          x: rect.left + rect.width / 2,
-          y: rect.top - 10, // Diatas teks
-        });
+      if (editorRect) {
+        // 1. Tentukan posisi tengah awal (X) dan atas (Y)
+        let x = firstRect.left - editorRect.left + firstRect.width / 2;
+        const y = firstRect.top - editorRect.top;
+
+        // 2. Logika Clamping Akurat
+        // Kita estimasi setengah lebar menu: Desktop ~230px, Mobile ~140px (karena wrap)
+        // Kita pastikan buffer tidak lebih dari setengah lebar editor
+        const buffer = Math.min(isMobile ? 140 : 230, editorRect.width / 2);
+
+        if (x < buffer) x = buffer;
+        if (x > editorRect.width - buffer) x = editorRect.width - buffer;
+
+        setFloatingMenu({ x, y });
       }
     };
 
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [isMobile]);
+  }, []);
 
   // --- MARKDOWN SHORTCUTS & TABLE TAB HANDLER ---
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // 0. UNDO / REDO SHORTCUTS
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === "z") {
+        e.preventDefault();
+        document.execCommand("undo");
+        onChange(ref.current?.innerHTML || "");
+        return;
+      }
+      if (e.key === "y") {
+        e.preventDefault();
+        document.execCommand("redo");
+        onChange(ref.current?.innerHTML || "");
+        return;
+      }
+    }
+
     // 1. DETEKSI TAB (Table & List Indentation)
     if (e.key === "Tab") {
       const sel = window.getSelection();
@@ -346,7 +390,13 @@ export default function RichTextEditor({ value, onChange }: Props) {
           return;
         }
 
-        // 5. BLOCKQUOTE ("> " -> <blockquote>)
+        // 5. HEADING 3 ("### " -> <h3>)
+        if (trimmedText === "###") {
+          triggerToggle("h3");
+          return;
+        }
+
+        // 6. BLOCKQUOTE ("> " -> <blockquote>)
         if (trimmedText === ">") {
           triggerToggle("blockquote");
           return;
@@ -377,29 +427,22 @@ export default function RichTextEditor({ value, onChange }: Props) {
         {editorEl && <Toolbar refEl={editorEl} onChange={onChange} />}
       </div>
 
-      {/* [NEW] FLOATING MOBILE MENU */}
+      {/* [NEW] FLOATING SELECTION MENU */}
       {floatingMenu && (
         <div 
-          className="fixed z-[200] -translate-x-1/2 -translate-y-full bg-slate-900 text-white rounded-lg shadow-xl flex items-center p-1 gap-0.5 animate-in fade-in zoom-in duration-200"
-          style={{ left: floatingMenu.x, top: floatingMenu.y }}
+          className="absolute z-[1000] -translate-x-1/2 -translate-y-full animate-in fade-in zoom-in duration-200"
+          style={{ 
+            left: floatingMenu.x, 
+            top: floatingMenu.y,
+            marginTop: "2px" // Menekan menu ke bawah agar lebih dekat dengan teks
+          }}
         >
-          <button 
-            onClick={() => { document.execCommand("bold"); onChange(ref.current?.innerHTML || ""); }}
-            className="p-2 hover:bg-slate-700 rounded text-xs font-bold"
-          >B</button>
-          <button 
-            onClick={() => { document.execCommand("italic"); onChange(ref.current?.innerHTML || ""); }}
-            className="p-2 hover:bg-slate-700 rounded text-xs italic"
-          >I</button>
-          <button 
-            onClick={() => { document.execCommand("underline"); onChange(ref.current?.innerHTML || ""); }}
-            className="p-2 hover:bg-slate-700 rounded text-xs underline"
-          >U</button>
-          <div className="w-px h-4 bg-slate-700 mx-1" />
-          <button 
-            onClick={() => { toggleBlockType("h1"); onChange(ref.current?.innerHTML || ""); }}
-            className="p-2 hover:bg-slate-700 rounded text-xs font-bold"
-          >H1</button>
+          <TextBubbleMenu 
+            editorRef={ref as React.RefObject<HTMLDivElement>}
+            onChange={onChange}
+            onClose={() => setFloatingMenu(null)}
+            isList={isInsideList}
+          />
         </div>
       )}
 
