@@ -3,10 +3,10 @@
 import { 
   Bold, Italic, Underline, Heading1, Heading2, Heading3, 
   List, ListOrdered, SquareCheck, Quote, Code, 
-  ChevronRight, ChevronLeft, Undo, Redo
+  ChevronRight, ChevronLeft, Undo, Redo, Type
 } from "lucide-react";
 import { 
-  cmdBold, cmdItalic, cmdUnderline, 
+  cmdBold, cmdExtraBold, cmdItalic, cmdUnderline, 
   cmdHeading1, cmdHeading2, cmdHeading3,
   cmdListItem, cmdOrderedList, cmdChecklist,
   cmdBlockquote, cmdCode, cmdUndo, cmdRedo
@@ -43,8 +43,16 @@ export default function TextBubbleMenu({ editorRef, onChange, onClose, isList }:
       <div className="w-px h-4 bg-slate-700 mx-1" />
 
       {/* BASIC FORMATTING */}
-      <button onClick={() => handleAction(cmdBold)} className="p-1.5 hover:bg-slate-700 rounded transition"><Bold size={16} /></button>
-      <button onClick={() => handleAction(cmdItalic)} className="p-1.5 hover:bg-slate-700 rounded transition"><Italic size={16} /></button>
+      <button onClick={() => handleAction(cmdBold)} className="p-1.5 hover:bg-slate-700 rounded transition" title="Bold"><Bold size={16} /></button>
+      <button onClick={() => handleAction(cmdExtraBold)} className="p-1.5 hover:bg-slate-700 rounded transition" title="Extra Bold">
+        <div className="relative">
+          <Type size={16} className="font-black" />
+          <span className="absolute -top-1 -right-1 text-[7px] font-bold bg-slate-100 text-slate-900 rounded-sm px-0.5">
+            +
+          </span>
+        </div>
+      </button>
+      <button onClick={() => handleAction(cmdItalic)} className="p-1.5 hover:bg-slate-700 rounded transition" title="Italic"><Italic size={16} /></button>
       <button onClick={() => handleAction(cmdUnderline)} className="p-1.5 hover:bg-slate-700 rounded transition"><Underline size={16} /></button>
       
       <div className="w-px h-4 bg-slate-700 mx-1" />

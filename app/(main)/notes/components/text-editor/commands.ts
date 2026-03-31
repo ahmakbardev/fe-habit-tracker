@@ -4,8 +4,10 @@ import {
   toggleFormat, toggleBlockType, toggleBlockClass, toggleList, toggleOrderedList, insertHTML, toggleCode, 
   toggleTextColor,
   toggleHighlight,
-  toggleCheckList
+  toggleCheckList,
+  toggleExtraBold
 } from "./html-utils";
+import { createColumns } from "./column-utils";
 
 // [FIX] Definisikan tipe agar tidak perlu ditulis berulang-ulang
 type EditorRef = RefObject<HTMLDivElement>;
@@ -13,6 +15,7 @@ type OnChangeFn = (html: string) => void;
 
 // ... (Bold, Italic, Underline)
 export const cmdBold = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("bold"); onChange(ref.current?.innerHTML || ""); };
+export const cmdExtraBold = (ref: EditorRef, onChange: OnChangeFn) => { toggleExtraBold(); onChange(ref.current?.innerHTML || ""); };
 export const cmdItalic = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("italic"); onChange(ref.current?.innerHTML || ""); };
 export const cmdUnderline = (ref: EditorRef, onChange: OnChangeFn) => { toggleFormat("underline"); onChange(ref.current?.innerHTML || ""); };
 
@@ -105,5 +108,12 @@ export const cmdHighlight = (ref: EditorRef, onChange: OnChangeFn, bgClass: stri
 // --- CHECKLIST ---
 export const cmdChecklist = (ref: EditorRef, onChange: OnChangeFn) => {
   toggleCheckList();
+  onChange(ref.current?.innerHTML || "");
+};
+
+// --- COLUMNS ---
+export const cmdInsertColumns = (ref: EditorRef, onChange: OnChangeFn) => {
+  const html = createColumns(2);
+  insertHTML(html);
   onChange(ref.current?.innerHTML || "");
 };

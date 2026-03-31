@@ -24,12 +24,15 @@ import {
   SquareCheck,
   Undo,
   Redo,
+  Columns2,
+  Type,
 } from "lucide-react";
 
 import ToolbarButton from "./ToolbarButton";
 
 import {
   cmdBold,
+  cmdExtraBold,
   cmdItalic,
   cmdUnderline,
   cmdHeading1,
@@ -49,6 +52,7 @@ import {
   cmdChecklist,
   cmdUndo,
   cmdRedo,
+  cmdInsertColumns,
 } from "./commands";
 import { restoreCaretManually, saveCaretManually } from "./caret-utils";
 import ImagePopover from "./popovers/ImagePopover";
@@ -92,6 +96,18 @@ export default function Toolbar({ refEl, onChange }: Props) {
 
       {/* FORMATTING */}
       <ToolbarButton icon={<Bold size={18} />} onClick={() => run(cmdBold)} />
+      <ToolbarButton
+        icon={
+          <div className="relative">
+            <Type size={18} className="font-black" />
+            <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-slate-200 rounded px-0.5">
+              +
+            </span>
+          </div>
+        }
+        onClick={() => run(cmdExtraBold)}
+        title="Extra Bold"
+      />
       <ToolbarButton
         icon={<Italic size={18} />}
         onClick={() => run(cmdItalic)}
@@ -179,6 +195,12 @@ export default function Toolbar({ refEl, onChange }: Props) {
         icon={<TableIcon size={18} />}
         onClick={() => run(cmdInsertTable)}
       />
+
+      <ToolbarButton
+        icon={<Columns2 size={18} />}
+        onClick={() => run(cmdInsertColumns)}
+      />
+
       <ToolbarButton
         icon={<Quote size={18} />}
         onClick={() => run(cmdBlockquote)}

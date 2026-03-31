@@ -189,6 +189,32 @@ export const toggleHighlight = (bgClass: string) => {
   sel.removeAllRanges();
 };
 
+// [BARU] Toggle Extra Bold (font-black)
+export const toggleExtraBold = () => {
+  saveCaretManually();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+
+  const range = sel.getRangeAt(0);
+  const selectedText = range.toString();
+  
+  if (selectedText.length > 0) {
+    const parent = sel.anchorNode?.parentElement;
+    // Jika parent sudah span font-black, maka kita toggle (hapus/reset)
+    if (parent && parent.tagName === "SPAN" && parent.classList.contains("font-black")) {
+      // Unwrap logic sederhana (replace span dengan isinya)
+      const textNode = document.createTextNode(parent.textContent || "");
+      parent.replaceWith(textNode);
+    } else {
+      const span = document.createElement("span");
+      span.className = "font-black text-slate-900"; // Paksa font-black (Satoshi Black)
+      range.surroundContents(span);
+    }
+  }
+  
+  sel.removeAllRanges();
+};
+
 // --- [PERBAIKAN] CHECKLIST LOGIC ---
 export const toggleCheckList = () => {
   // PENTING: Hapus saveCaretManually() di sini.

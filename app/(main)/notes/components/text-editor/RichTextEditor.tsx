@@ -8,10 +8,18 @@ import { Heading1, List, ListOrdered, Quote } from "lucide-react";
 import TableBubbleMenu from "./TableBubbleMenu";
 import { handleTableTab } from "./table-utils";
 import { ensureCheckboxInLi } from "./html-utils";
+import { addColumn, removeColumn } from "./column-utils";
 import { moveCaretToEnd } from "./caret-utils";
-import { useMediaQuery } from "@/lib/utils";
+import { useMediaQuery, cn } from "@/lib/utils";
 import { markdownToHtml, isMarkdown } from "./markdown-utils";
 import TextBubbleMenu from "./TextBubbleMenu";
+import SlashPopover from "./popovers/SlashPopover";
+import { 
+  cmdHeading1, cmdHeading2, cmdHeading3, 
+  cmdListItem, cmdOrderedList, cmdChecklist,
+  cmdInsertColumns, cmdInsertTable, cmdBlockquote, 
+  cmdCode, cmdBold, cmdExtraBold 
+} from "./commands";
 import { createPortal } from "react-dom";
 
 // --- [UPDATED] RICH EMPTY STATE ---
@@ -136,9 +144,106 @@ export default function RichTextEditor({ value, onChange }: Props) {
     editorEl.addEventListener("mousedown", handleSelection);
     editorEl.addEventListener("touchstart", handleSelection, { passive: true });
     
+    let isResizingColumns = false;
+    let leftCol: HTMLElement | null = null;
+    let rightCol: HTMLElement | null = null;
+    let container: HTMLElement | null = null;
+    let startX = 0;
+    let startLeftWidth = 0;
+    let startRightWidth = 0;
+    let animationFrameId: number | null = null;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizingColumns || !leftCol || !rightCol || !container) return;
+      
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+      animationFrameId = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startX;
+        const totalContainerWidth = container!.offsetWidth;
+        
+        let newLeftWidthPx = startLeftWidth + deltaX;
+        let newRightWidthPx = startRightWidth - deltaX;
+        
+        if (newLeftWidthPx < 50) {
+          newLeftWidthPx = 50;
+          newRightWidthPx = (startLeftWidth + startRightWidth) - 50;
+        }
+        if (newRightWidthPx < 50) {
+          newRightWidthPx = 50;
+          newLeftWidthPx = (startLeftWidth + startRightWidth) - 50;
+        }
+        
+        const leftFlex = (newLeftWidthPx / totalContainerWidth) * 100;
+        const rightFlex = (newRightWidthPx / totalContainerWidth) * 100;
+        
+        leftCol!.style.flex = `${leftFlex} ${leftFlex} 0%`;
+        rightCol!.style.flex = `${rightFlex} ${rightFlex} 0%`;
+      });
+    };
+
+    const onMouseUp = () => {
+      if (isResizingColumns) {
+        isResizingColumns = false;
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        
+        // Restore transitions
+        if (container) {
+          container.style.transition = "";
+          const cols = container.querySelectorAll(".rte-column");
+          cols.forEach(c => (c as HTMLElement).style.transition = "");
+        }
+
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        
+        if (ref.current) onChange(ref.current.innerHTML);
+      }
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const resizer = target.closest(".rte-column-resizer") as HTMLElement;
+      
+      if (resizer) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        isResizingColumns = true;
+        leftCol = resizer.previousElementSibling as HTMLElement;
+        rightCol = resizer.nextElementSibling as HTMLElement;
+        container = resizer.parentElement as HTMLElement;
+        
+        if (!leftCol || !rightCol || !container) return;
+
+        startX = e.clientX;
+        startLeftWidth = leftCol.offsetWidth;
+        startRightWidth = rightCol.offsetWidth;
+        
+        // Disable transitions for smooth dragging
+        container.style.transition = "none";
+        const cols = container.querySelectorAll(".rte-column");
+        cols.forEach(c => (c as HTMLElement).style.transition = "none");
+
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      }
+    };
+
+    editorEl.addEventListener("mousedown", onMouseDown);
+    
     return () => {
       editorEl.removeEventListener("mousedown", handleSelection);
       editorEl.removeEventListener("touchstart", handleSelection);
+      editorEl.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
     };
   }, [editorEl, selectedImg, activeTable]);
 
@@ -189,31 +294,39 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
   }, [value, editorEl]);
 
-  // --- [PERBAIKAN] HANDLER KLIK CHECKBOX ---
+  // --- [PERBAIKAN] HANDLER KLIK CHECKBOX & COLUMNS ---
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
 
-    // Cek jika yang diklik adalah Checkbox di dalam editor
+    // 1. Logic Checkbox
     if (
       target.tagName === "INPUT" &&
       (target as HTMLInputElement).type === "checkbox"
     ) {
-      // [FIX] Stop propagasi agar tidak dianggap click editor biasa yang mereset seleksi
       e.stopPropagation();
-
       const checkbox = target as HTMLInputElement;
-
-      // [FIX] Update atribut DOM agar tersimpan di string HTML
       if (checkbox.checked) {
         checkbox.setAttribute("checked", "true");
       } else {
         checkbox.removeAttribute("checked");
       }
+      if (ref.current) onChange(ref.current.innerHTML);
+      return;
+    }
 
-      // PENTING: Trigger onChange manual agar parent tau HTML berubah
-      if (ref.current) {
-        const newHtml = ref.current.innerHTML;
-        onChange(newHtml);
+    // 2. Logic Column Buttons
+    const columnContainer = target.closest(".rte-columns") as HTMLElement;
+    if (columnContainer) {
+      if (target.classList.contains("add-column-btn")) {
+        e.preventDefault();
+        e.stopPropagation();
+        addColumn(columnContainer);
+        if (ref.current) onChange(ref.current.innerHTML);
+      } else if (target.classList.contains("remove-column-btn")) {
+        e.preventDefault();
+        e.stopPropagation();
+        removeColumn(columnContainer);
+        if (ref.current) onChange(ref.current.innerHTML);
       }
     }
   };
@@ -247,6 +360,49 @@ export default function RichTextEditor({ value, onChange }: Props) {
         }
       }
     }
+  };
+
+  // --- [NEW] SLASH MENU LOGIC ---
+  const [slashMenu, setSlashMenu] = useState<{ 
+    x: number; 
+    y: number; 
+    filter: string;
+    placement: "top" | "bottom";
+  } | null>(null);
+
+  const handleSelectSlashAction = (action: string) => {
+    if (!slashMenu) return;
+
+    // 1. Kembalikan fokus ke editor agar execCommand bekerja
+    ref.current?.focus();
+
+    // 2. Hapus karakter "/" dan filter yang diketik menggunakan perintah delete
+    // Ini jauh lebih handal daripada manipulasi Range manual di contentEditable
+    const lengthToDelete = slashMenu.filter.length + 1;
+    for (let i = 0; i < lengthToDelete; i++) {
+      document.execCommand("delete", false);
+    }
+
+    // 3. Jalankan aksi sesuai pilihan
+    type EditorCommand = (ref: React.RefObject<HTMLDivElement>, onChange: (html: string) => void) => void;
+    const runAction = (cmd: EditorCommand) => cmd(ref as React.RefObject<HTMLDivElement>, onChange);
+
+    switch (action) {
+      case "h1": runAction(cmdHeading1); break;
+      case "h2": runAction(cmdHeading2); break;
+      case "h3": runAction(cmdHeading3); break;
+      case "bullet": runAction(cmdListItem); break;
+      case "number": runAction(cmdOrderedList); break;
+      case "todo": runAction(cmdChecklist); break;
+      case "columns": runAction(cmdInsertColumns); break;
+      case "table": runAction(cmdInsertTable); break;
+      case "quote": runAction(cmdBlockquote); break;
+      case "code": runAction(cmdCode); break;
+      case "bold": runAction(cmdBold); break;
+      case "extrabold": runAction(cmdExtraBold); break;
+    }
+
+    setSlashMenu(null);
   };
 
   // --- [NEW] FLOATING MENU LOGIC ---
@@ -298,6 +454,79 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   // --- MARKDOWN SHORTCUTS & TABLE TAB HANDLER ---
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // [NEW] BACKSPACE HANDLING UNTUK COLUMNS
+    if (e.key === "Backspace") {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed) {
+        const node = sel.anchorNode;
+        const parent = (node?.nodeType === 3 ? node.parentElement : node) as HTMLElement;
+        const col = parent?.closest(".rte-column") as HTMLElement;
+        
+        if (col) {
+          // Jika kolom kosong (hanya ada <br> atau kosong total)
+          const isEmpty = col.innerText.trim() === "" && col.querySelectorAll("img, table").length === 0;
+          
+          if (isEmpty) {
+            e.preventDefault();
+            const wrapper = col.closest(".rte-columns") as HTMLElement;
+            if (wrapper) {
+              removeColumn(wrapper);
+              if (ref.current) onChange(ref.current.innerHTML);
+            }
+            return;
+          }
+        }
+      }
+    }
+
+    // [NEW] SLASH COMMAND TRIGGER
+    if (e.key === "/") {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed) {
+        const range = sel.getRangeAt(0);
+        const rects = range.getClientRects();
+        const editorRect = ref.current?.getBoundingClientRect();
+        
+        if (editorRect) {
+          const rect: DOMRect = rects.length > 0 ? rects[0] : (() => {
+            // Fallback: awal baris
+            const span = document.createElement("span");
+            span.textContent = "\u200b";
+            range.insertNode(span);
+            const r = span.getBoundingClientRect();
+            span.remove();
+            return r;
+          })();
+
+          // Cek sisa ruang di bawah
+          const spaceBelow = window.innerHeight - rect.bottom;
+          const placement = spaceBelow < 300 ? "top" : "bottom";
+
+          setSlashMenu({
+            x: rect.left - editorRect.left,
+            y: rect.top - editorRect.top + (placement === "bottom" ? rect.height : 0),
+            filter: "",
+            placement
+          });
+        }
+      }
+    }
+
+    // [NEW] FILTERING SLASH MENU
+    if (slashMenu && e.key.length === 1 && e.key !== "/") {
+      setSlashMenu(prev => prev ? { ...prev, filter: prev.filter + e.key } : null);
+    }
+    if (slashMenu && e.key === "Backspace") {
+      if (slashMenu.filter === "") setSlashMenu(null);
+      else setSlashMenu(prev => prev ? { ...prev, filter: prev.filter.slice(0, -1) } : null);
+    }
+    if (slashMenu && (e.key === "Escape" || e.key === "Enter" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      // Biarkan SlashPopover menangani ini via window listener, tapi cegah default di editor
+      if (e.key !== "Enter") {
+         // Enter ditangani khusus agar tidak insert newline
+      }
+    }
+
     // 0. UNDO / REDO SHORTCUTS
     if (e.ctrlKey || e.metaKey) {
       if (e.key === "z") {
@@ -433,6 +662,29 @@ export default function RichTextEditor({ value, onChange }: Props) {
         {editorEl && <Toolbar refEl={editorEl} onChange={onChange} />}
       </div>
 
+      {/* [NEW] SLASH COMMAND MENU */}
+      {slashMenu && createPortal(
+        <div 
+          className={cn(
+            "absolute z-[2000] pointer-events-auto animate-in fade-in zoom-in duration-200",
+            slashMenu.placement === "top" 
+              ? "-translate-y-full slide-in-from-bottom-2" 
+              : "slide-in-from-top-2"
+          )}
+          style={{ 
+            left: slashMenu.x + (ref.current?.getBoundingClientRect().left || 0), 
+            top: slashMenu.y + (ref.current?.getBoundingClientRect().top || 0) + (slashMenu.placement === "bottom" ? 10 : -10)
+          }}
+        >
+          <SlashPopover 
+            filter={slashMenu.filter}
+            onSelect={handleSelectSlashAction}
+            onClose={() => setSlashMenu(null)}
+          />
+        </div>,
+        document.body
+      )}
+
       {/* [NEW] FLOATING SELECTION MENU */}
       {floatingMenu && (
         <div 
@@ -499,11 +751,13 @@ export default function RichTextEditor({ value, onChange }: Props) {
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         onInput={(e) => {
-          // [FIX] Hanya tangani event jika targetnya adalah editor itu sendiri
-          // Ini mencegah bubbling event dari child input (checkbox) yang punya innerHTML kosong
-          if (e.target !== ref.current) return;
+          const target = e.target as HTMLElement;
 
-          const html = (e.target as HTMLDivElement).innerHTML;
+          // [FIX] Jangan skip jika target adalah elemen editable (seperti kolom)
+          // Hanya skip jika target adalah INPUT (checkbox)
+          if (target.tagName === "INPUT") return;
+
+          const html = (ref.current as HTMLDivElement).innerHTML;
           const cleanHtml = html === "<br>" ? "" : html;
           
           const currentValue = typeof value === "string" ? value : "";
@@ -556,6 +810,9 @@ export default function RichTextEditor({ value, onChange }: Props) {
             [&_code]:font-mono [&_code]:text-sm [&_code]:bg-slate-100 [&_code]:text-red-500 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:border [&_code]:border-slate-200
             [&_img]:cursor-pointer [&_img]:border-2 [&_img]:border-transparent [&_img:hover]:border-blue-200 [&_img]:transition-colors
             [&_a]:text-blue-600 [&_a]:underline [&_a]:cursor-pointer [&_a:hover]:text-blue-800
+            
+            /* --- EXTRA BOLD (FONT BLACK) --- */
+            [&_.font-black]:font-black [&_.font-black]:text-slate-900
 
             [&_table]:border-collapse [&_table]:border-spacing-0 [&_table]:my-4
             [&_th]:bg-slate-50 [&_th]:font-semibold [&_th]:text-left
