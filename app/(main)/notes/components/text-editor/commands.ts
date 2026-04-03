@@ -56,8 +56,11 @@ export const cmdLink = (ref: EditorRef, onChange: OnChangeFn, alias: string, url
 
 export const cmdImage = (ref: EditorRef, onChange: OnChangeFn, url: string) => {
   const html = `
-    <div class="my-3 w-full flex justify-center">
-      <img src="${url}" class="max-w-full rounded-lg block object-contain shadow-sm" style="width: 90%;" />
+    <div class="my-3 w-full flex justify-center image-wrapper" draggable="false">
+      <img src="${url}" 
+           class="max-w-full rounded-lg block object-contain shadow-sm draggable-image cursor-grab active:cursor-grabbing" 
+           style="width: 90%;" 
+           draggable="false" />
     </div>
   `;
   insertHTML(html);
