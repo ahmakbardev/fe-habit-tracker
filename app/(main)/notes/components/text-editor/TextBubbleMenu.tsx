@@ -3,7 +3,7 @@
 import { 
   Bold, Italic, Underline, Heading1, Heading2, Heading3, 
   List, ListOrdered, SquareCheck, Quote, Code, 
-  ChevronRight, ChevronLeft, Undo, Redo, Type
+  ChevronRight, ChevronLeft, Undo, Redo, Type, Highlighter
 } from "lucide-react";
 import { 
   cmdBold, cmdExtraBold, cmdItalic, cmdUnderline, 
@@ -31,6 +31,23 @@ export default function TextBubbleMenu({ editorRef, onChange, onClose, isList }:
     onChange(editorRef.current?.innerHTML || "");
   };
 
+  const handleHighlight = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+
+    const range = sel.getRangeAt(0);
+    const mark = document.createElement("mark");
+    mark.className = "bg-yellow-200 text-slate-900 px-1 rounded";
+    
+    try {
+      mark.appendChild(range.extractContents());
+      range.insertNode(mark);
+      if (editorRef.current) onChange(editorRef.current.innerHTML);
+    } catch (e) {
+      console.error("Highlight error:", e);
+    }
+  };
+
   return (
     <div 
       className="flex items-center gap-0.5 p-1 bg-slate-900 text-white rounded-lg shadow-xl animate-in fade-in zoom-in duration-200 flex-wrap max-w-[calc(100vw-2rem)] md:max-w-[460px] justify-center"
@@ -54,6 +71,7 @@ export default function TextBubbleMenu({ editorRef, onChange, onClose, isList }:
       </button>
       <button onClick={() => handleAction(cmdItalic)} className="p-1.5 hover:bg-slate-700 rounded transition" title="Italic"><Italic size={16} /></button>
       <button onClick={() => handleAction(cmdUnderline)} className="p-1.5 hover:bg-slate-700 rounded transition"><Underline size={16} /></button>
+      <button onClick={handleHighlight} className="p-1.5 hover:bg-slate-700 rounded transition" title="Highlight"><Highlighter size={16} /></button>
       
       <div className="w-px h-4 bg-slate-700 mx-1" />
 

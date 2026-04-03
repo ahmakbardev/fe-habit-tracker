@@ -8,17 +8,20 @@ const getSelectedBlockElement = (): HTMLElement | null => {
   if (!sel || sel.rangeCount === 0) return null;
   
   let node = sel.anchorNode;
-  // Jika node adalah text, naik ke parent element-nya
   if (node && node.nodeType === 3) node = node.parentNode;
   
-  // Traverse ke atas sampai ketemu elemen blok atau mentok di root editor
   while (node && node instanceof HTMLElement) {
     const tag = node.tagName.toLowerCase();
-    // Stop jika ketemu elemen blok formatting
-    if (["div", "p", "h1", "h2", "h3", "blockquote", "li", "pre", "ul", "ol"].includes(tag)) {
+    
+    if (tag === "summary") return null;
+
+    // Daftar elemen blok yang sah untuk diberi alignment
+    if (["p", "h1", "h2", "h3", "blockquote", "li", "pre", "div"].includes(tag)) {
+      // Pastikan bukan wrapper utama editor
+      if (node.classList.contains("rte")) return null;
       return node;
     }
-    // Stop jika kena root editor (cegah editing wrapper utama)
+    
     if (node.classList.contains("rte")) return null; 
     node = node.parentElement;
   }
@@ -28,78 +31,78 @@ const getSelectedBlockElement = (): HTMLElement | null => {
 export const toggleFormat = (format: string) => {
   document.execCommand(format, false, undefined);
 };
-// --- LOGIC H1 & BLOCKQUOTE ---
+
 export const toggleBlockType = (tagName: string) => {
+  const sel = window.getSelection();
+  if (sel?.anchorNode?.parentElement?.closest("summary")) return;
+
   saveCaretManually();
   const block = getSelectedBlockElement();
 
-  // Jika belum punya block (text telanjang), format langsung
   if (!block) {
     document.execCommand("formatBlock", false, tagName);
-    return;
-  }
-
-  // Toggle Logic: Jika sudah H1 -> Balikin jadi DIV (default editor), Jika belum -> Jadi H1
-  const currentTag = block.tagName.toLowerCase();
-  const targetTag = tagName.toLowerCase();
-
-  // Jika tag saat ini sama dengan target, kita "reset" ke DIV
-  if (currentTag === targetTag) {
-    document.execCommand("formatBlock", false, "div");
   } else {
-    document.execCommand("formatBlock", false, tagName);
+    const currentTag = block.tagName.toLowerCase();
+    if (currentTag === tagName.toLowerCase()) {
+      document.execCommand("formatBlock", false, "div");
+    } else {
+      document.execCommand("formatBlock", false, tagName);
+    }
   }
 
   setTimeout(restoreCaretManually, 0);
 };
 
-// ... LOGIC CODE ...
-
-// --- LOGIC ALIGNMENT (ANTI-NESTING) ---
+// --- LOGIC ALIGNMENT (FORCE CLASS & STYLE) ---
 export const toggleBlockClass = (className: string, groupClasses: string[]) => {
+  // 1. Simpan Caret (Cegah lompat kursor)
   saveCaretManually();
+  
+  // 2. Cari blok
   let block = getSelectedBlockElement();
   
-  // Jika text belum punya wrapper (misal barusaja diketik di root), bungkus dulu dengan DIV
+  // 3. Jika teks "telanjang" (langsung di root), bungkus dengan DIV dulu
   if (!block) {
     document.execCommand("formatBlock", false, "div");
-    // Ambil ulang block yang baru dibuat
     block = getSelectedBlockElement();
   }
   
   if (block) {
-    // 1. Hapus semua class alignment lama (biar gak numpuk)
+    // 4. BERSIHKAN SEMUA CLASS LAMA (PENTING)
     block.classList.remove(...groupClasses);
     
-    // 2. Tambah class baru (kecuali 'text-left' default bisa opsional dihapus)
+    // 5. TAMBAH CLASS BARU
     block.classList.add(className);
     
-    // 3. Clean up: Jika class kosong, remove attribute class (opsional)
+    // 6. FORCE INLINE STYLE (Agar 100% works)
+    let alignValue = "left";
+    if (className.includes("center")) alignValue = "center";
+    else if (className.includes("right")) alignValue = "right";
+    else if (className.includes("justify")) alignValue = "justify";
+    
+    block.style.textAlign = alignValue;
+
+    // 7. Cleanup jika class kosong
     if (block.className === "") block.removeAttribute("class");
   }
   
+  // 8. Kembalikan Caret
   setTimeout(restoreCaretManually, 0);
 };
 
-// --- LOGIC CODE (WRAPPER MANUAL) ---
 export const toggleCode = () => {
   saveCaretManually();
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
 
   const range = sel.getRangeAt(0);
-  // Cek apakah parent sudah code? (Simple toggle check)
   const parent = sel.anchorNode?.parentElement;
-  if (parent && parent.tagName === "CODE") {
-     // Opsional: Implement unwrap logic here if needed
-     return; 
-  }
+  if (parent && parent.tagName === "CODE") return;
 
   const selectedText = range.toString();
   range.deleteContents();
   
   const codeEl = document.createElement("code");
-  // Isi text + spasi zero-width agar cursor tidak stuck
   codeEl.textContent = selectedText || "\u00A0"; 
   
   range.insertNode(codeEl);
@@ -112,19 +115,21 @@ export const toggleCode = () => {
 export const toggleList = () => document.execCommand("insertUnorderedList");
 export const toggleOrderedList = () => document.execCommand("insertOrderedList");
 
+export const isInColumn = (): boolean => {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+  return !!(sel.anchorNode as HTMLElement)?.parentElement?.closest(".rte-column");
+};
+
 export const insertHTML = (html: string) => {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
   const range = sel.getRangeAt(0);
   range.deleteContents();
   
-  const div = document.createElement("div");
-  div.innerHTML = html.trim();
-  
-  const fragment = document.createDocumentFragment();
-  while (div.firstChild) {
-    fragment.appendChild(div.firstChild);
-  }
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  const fragment = template.content;
   
   const lastNode = fragment.lastChild;
   range.insertNode(fragment);
@@ -138,13 +143,11 @@ export const insertHTML = (html: string) => {
   }
 };
 
-// [BARU] Toggle Text Color (Menggunakan span wrapper)
 export const toggleTextColor = (colorClass: string) => {
   saveCaretManually();
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
 
-  // Gunakan wrapper span untuk styling warna
   const span = document.createElement("span");
   span.className = colorClass;
   
@@ -152,21 +155,16 @@ export const toggleTextColor = (colorClass: string) => {
   const selectedText = range.toString();
   
   if (selectedText.length > 0) {
-    // Cek apakah parent sudah span warna? kalau ya, ganti class-nya
     const parent = sel.anchorNode?.parentElement;
-    if (parent && parent.tagName === "SPAN" && parent.classList.contains("text-")) {
-        // Reset class lama, tambah baru (asumsi class warna diawali text-)
-        // Logic ini bisa diperbaiki untuk menghapus class text-* lama lebih spesifik jika perlu
+    if (parent && parent.tagName === "SPAN" && parent.className.includes("text-")) {
         parent.className = colorClass;
     } else {
         range.surroundContents(span);
     }
   }
-  
   sel.removeAllRanges(); 
 };
 
-// [BARU] Toggle Highlight (Background Color)
 export const toggleHighlight = (bgClass: string) => {
   saveCaretManually();
   const sel = window.getSelection();
@@ -189,7 +187,6 @@ export const toggleHighlight = (bgClass: string) => {
   sel.removeAllRanges();
 };
 
-// [BARU] Toggle Extra Bold (font-black)
 export const toggleExtraBold = () => {
   saveCaretManually();
   const sel = window.getSelection();
@@ -200,14 +197,12 @@ export const toggleExtraBold = () => {
   
   if (selectedText.length > 0) {
     const parent = sel.anchorNode?.parentElement;
-    // Jika parent sudah span font-black, maka kita toggle (hapus/reset)
     if (parent && parent.tagName === "SPAN" && parent.classList.contains("font-black")) {
-      // Unwrap logic sederhana (replace span dengan isinya)
       const textNode = document.createTextNode(parent.textContent || "");
       parent.replaceWith(textNode);
     } else {
       const span = document.createElement("span");
-      span.className = "font-black text-slate-900"; // Paksa font-black (Satoshi Black)
+      span.className = "font-black text-slate-900";
       range.surroundContents(span);
     }
   }
@@ -215,49 +210,28 @@ export const toggleExtraBold = () => {
   sel.removeAllRanges();
 };
 
-// --- [PERBAIKAN] CHECKLIST LOGIC ---
 export const toggleCheckList = () => {
-  // PENTING: Hapus saveCaretManually() di sini.
-  // Karena kita akan memanipulasi DOM (prepend), posisi caret lama jadi tidak valid.
-  
-  // 1. Buat List Standar dulu
   document.execCommand("insertUnorderedList");
-
-  // 2. Cari elemen UL terdekat
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
   
   let node = sel.anchorNode;
-  if (node && node.nodeType === 3) {
-     node = node.parentElement;
-  }
+  if (node && node.nodeType === 3) node = node.parentElement;
 
-  // Cari elemen LI dan UL
   const li = (node as HTMLElement)?.closest("li");
   const ul = (node as HTMLElement)?.closest("ul");
 
   if (ul) {
-    // 3. Tambah class task-list ke UL
     ul.classList.add("task-list");
-    
-    // 4. Inject Checkbox & PERBAIKI POSISI CARET
     if (li) {
        ensureCheckboxInLi(li);
-       
-       // [FIX] Paksa kursor ke AKHIR LI (setelah checkbox)
-       // setTimeout 0 agar browser selesai render DOM dulu
-       setTimeout(() => {
-         moveCaretToEnd(li as HTMLElement);
-       }, 0);
+       setTimeout(() => moveCaretToEnd(li as HTMLElement), 0);
     }
-
-    // 5. Scan anak lain (selection banyak baris)
     const items = ul.querySelectorAll("li");
     items.forEach(item => ensureCheckboxInLi(item));
   }
 };
 
-// Helper: Suntik checkbox ke dalam LI jika belum ada
 export const ensureCheckboxInLi = (li: HTMLLIElement | Element) => {
   const firstChild = li.firstElementChild;
   const hasCheckbox =
@@ -268,13 +242,9 @@ export const ensureCheckboxInLi = (li: HTMLLIElement | Element) => {
   if (!hasCheckbox) {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.contentEditable = "false"; // Agar checkbox bisa diklik di dalam contentEditable
-    
-    // [UPDATE] Gunakan class generic saja, styling detail kita pindah ke RichTextEditor
-    // "select-none" penting agar checkbox tidak ikut ter-highlight saat blok teks
+    checkbox.contentEditable = "false";
     checkbox.className = "task-checkbox select-none"; 
-    
-    checkbox.removeAttribute("checked"); // Default unchecked
+    checkbox.removeAttribute("checked");
     li.prepend(checkbox);
   }
 };

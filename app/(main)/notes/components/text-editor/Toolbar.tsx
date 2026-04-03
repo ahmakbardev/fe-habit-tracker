@@ -14,6 +14,7 @@ import {
   Heading1,
   Link as LinkIcon,
   Image as ImageIcon,
+  Highlighter,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -26,6 +27,8 @@ import {
   Redo,
   Columns2,
   Type,
+  ChevronDown,
+  Languages,
 } from "lucide-react";
 
 import ToolbarButton from "./ToolbarButton";
@@ -53,15 +56,22 @@ import {
   cmdUndo,
   cmdRedo,
   cmdInsertColumns,
+  cmdInsertCollapsible,
 } from "./commands";
 import { restoreCaretManually, saveCaretManually } from "./caret-utils";
 import ImagePopover from "./popovers/ImagePopover";
 import ColorPopover from "./popovers/ColorPopover";
 import LinkPopover from "./popovers/LinkPopover";
+import { cn } from "@/lib/utils";
 
 type Props = {
   refEl: HTMLDivElement | null;
   onChange: (v: string) => void;
+  spellCheckEnabled?: boolean;
+  onToggleSpellCheck?: () => void;
+  undo: () => void;
+  redo: () => void;
+  onExecute: (cmd: CommandFn) => void;
 };
 
 type CommandFn = (
@@ -69,7 +79,15 @@ type CommandFn = (
   onChange: (v: string) => void
 ) => void;
 
-export default function Toolbar({ refEl, onChange }: Props) {
+export default function Toolbar({ 
+  refEl, 
+  onChange,
+  spellCheckEnabled = true,
+  onToggleSpellCheck,
+  undo,
+  redo,
+  onExecute
+}: Props) {
   const refObj = (
     refEl ? { current: refEl } : null
   ) as RefObject<HTMLDivElement>;
@@ -77,7 +95,7 @@ export default function Toolbar({ refEl, onChange }: Props) {
   const run = (action: CommandFn) => {
     if (refObj && refObj.current) {
       refObj.current.focus();
-      action(refObj, onChange);
+      onExecute(action);
     }
   };
 
@@ -89,8 +107,8 @@ export default function Toolbar({ refEl, onChange }: Props) {
   return (
     <div className="flex gap-2 mb-3 pb-2 items-center flex-wrap">
       {/* HISTORY */}
-      <ToolbarButton icon={<Undo size={18} />} onClick={() => run(cmdUndo)} />
-      <ToolbarButton icon={<Redo size={18} />} onClick={() => run(cmdRedo)} />
+      <ToolbarButton icon={<Undo size={18} />} onClick={undo} />
+      <ToolbarButton icon={<Redo size={18} />} onClick={redo} />
 
       <div className="w-[1px] h-6 bg-slate-200 mx-1" />
 
@@ -115,6 +133,11 @@ export default function Toolbar({ refEl, onChange }: Props) {
       <ToolbarButton
         icon={<Underline size={18} />}
         onClick={() => run(cmdUnderline)}
+      />
+      <ToolbarButton
+        icon={<Highlighter size={18} />}
+        onClick={() => run((ref, oc) => cmdHighlight(ref, oc, "bg-yellow-200"))}
+        title="Highlight (Yellow)"
       />
 
       <div className="w-[1px] h-6 bg-slate-200 mx-1" />
@@ -153,7 +176,7 @@ export default function Toolbar({ refEl, onChange }: Props) {
               setTimeout(() => {
                 refEl.focus();
                 restoreCaretManually();
-                cmdTextColor({ current: refEl }, onChange, colorClass);
+                onExecute((r, oc) => cmdTextColor(r, oc, colorClass));
                 close();
               }, 0);
             }}
@@ -162,7 +185,7 @@ export default function Toolbar({ refEl, onChange }: Props) {
               setTimeout(() => {
                 refEl.focus();
                 restoreCaretManually();
-                cmdHighlight({ current: refEl }, onChange, bgClass);
+                onExecute((r, oc) => cmdHighlight(r, oc, bgClass));
                 close();
               }, 0);
             }}
@@ -206,6 +229,12 @@ export default function Toolbar({ refEl, onChange }: Props) {
         onClick={() => run(cmdBlockquote)}
       />
 
+      <ToolbarButton
+        icon={<ChevronDown size={18} />}
+        onClick={() => run(cmdInsertCollapsible)}
+        title="Collapsible Section"
+      />
+
       <ToolbarButton icon={<Code size={18} />} onClick={() => run(cmdCode)} />
 
       {/* LINK */}
@@ -224,7 +253,7 @@ export default function Toolbar({ refEl, onChange }: Props) {
               setTimeout(() => {
                 refEl.focus();
                 restoreCaretManually();
-                cmdLink({ current: refEl }, onChange, alias, url);
+                onExecute((r, oc) => cmdLink(r, oc, alias, url));
                 close();
               }, 0);
             }}
@@ -248,13 +277,26 @@ export default function Toolbar({ refEl, onChange }: Props) {
               setTimeout(() => {
                 refEl.focus();
                 restoreCaretManually();
-                cmdImage({ current: refEl }, onChange, url);
+                onExecute((r, oc) => cmdImage(r, oc, url));
                 close();
               }, 0);
             }}
           />
         )}
       </ResponsivePopover>
+
+      <div className="w-[1px] h-6 bg-slate-200 mx-1" />
+
+      {/* SPELLCHECK TOGGLE */}
+      <ToolbarButton 
+        icon={<Languages size={18} />} 
+        onClick={onToggleSpellCheck || (() => {})} 
+        title={spellCheckEnabled ? "Disable Spellcheck" : "Enable Spellcheck"}
+        className={cn(
+          "transition-colors",
+          spellCheckEnabled ? "text-blue-600 bg-blue-50 hover:bg-blue-100" : "text-slate-400"
+        )}
+      />
     </div>
   );
 }

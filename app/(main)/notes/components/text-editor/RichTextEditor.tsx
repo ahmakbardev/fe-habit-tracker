@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import Toolbar from "./Toolbar";
 import ImageResizer from "./ImageResizer";
 import { toggleBlockType, toggleList, toggleOrderedList, insertHTML } from "./html-utils";
@@ -98,13 +98,92 @@ export default function RichTextEditor({ value, onChange }: Props) {
   // State untuk tracking focus & content (Empty State Logic)
   const [isFocused, setIsFocused] = useState(false);
   const [isInsideList, setIsInsideList] = useState(false);
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
+
+  // --- [NEW] HISTORY MANAGEMENT ---
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isInternalChange = useRef(false);
+
+  // Helper untuk simpan state ke history
+  const saveToHistory = useCallback((html: string) => {
+    if (isInternalChange.current) return;
+    
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      // Jangan simpan jika sama dengan state terakhir
+      if (newHistory[newHistory.length - 1] === html) return prev;
+      
+      const updated = [...newHistory, html].slice(-50); // Limit 50 steps
+      setHistoryIndex(updated.length - 1);
+      return updated;
+    });
+  }, [historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      const html = history[prevIndex];
+      isInternalChange.current = true;
+      if (ref.current) {
+        ref.current.innerHTML = html;
+        onChange(html);
+      }
+      setHistoryIndex(prevIndex);
+      setTimeout(() => { isInternalChange.current = false; }, 0);
+    }
+  }, [history, historyIndex, onChange]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const nextIndex = historyIndex + 1;
+      const html = history[nextIndex];
+      isInternalChange.current = true;
+      if (ref.current) {
+        ref.current.innerHTML = html;
+        onChange(html);
+      }
+      setHistoryIndex(nextIndex);
+      setTimeout(() => { isInternalChange.current = false; }, 0);
+    }
+  }, [history, historyIndex, onChange]);
+
+  // Helper untuk menjalankan command dengan snapshot history sebelumnya
+  const executeCommand = useCallback((cmd: (ref: React.RefObject<HTMLDivElement>, onChange: (html: string) => void) => void) => {
+    // Save current state BEFORE command
+    saveToHistory(ref.current?.innerHTML || "");
+    // Execute command
+    cmd(ref as React.RefObject<HTMLDivElement>, onChange);
+    // [Optional] Save state AFTER command immediately
+    setTimeout(() => {
+      saveToHistory(ref.current?.innerHTML || "");
+    }, 0);
+  }, [saveToHistory, onChange]);
+
+  // [FIX] Pastikan value adalah string sebelum melakukan operasi string
+  const safeValue = typeof value === "string" ? value : "";
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // [FIX] Pastikan value adalah string sebelum melakukan operasi string
-  const safeValue = typeof value === "string" ? value : "";
+  // Initial history state
+  useEffect(() => {
+    if (mounted && history.length === 0 && safeValue) {
+      setHistory([safeValue]);
+      setHistoryIndex(0);
+    }
+  }, [mounted, safeValue, history.length]);
+
+  // Debounced auto-save history
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isFocused && !isInternalChange.current) {
+        saveToHistory(ref.current?.innerHTML || "");
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [value, isFocused, saveToHistory]);
 
   // Cek apakah konten kosong (handle kasus HTML sisaan spasi/break)
   const isEmpty = !safeValue || safeValue === "<br>" || safeValue.trim() === "";
@@ -384,22 +463,19 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
 
     // 3. Jalankan aksi sesuai pilihan
-    type EditorCommand = (ref: React.RefObject<HTMLDivElement>, onChange: (html: string) => void) => void;
-    const runAction = (cmd: EditorCommand) => cmd(ref as React.RefObject<HTMLDivElement>, onChange);
-
     switch (action) {
-      case "h1": runAction(cmdHeading1); break;
-      case "h2": runAction(cmdHeading2); break;
-      case "h3": runAction(cmdHeading3); break;
-      case "bullet": runAction(cmdListItem); break;
-      case "number": runAction(cmdOrderedList); break;
-      case "todo": runAction(cmdChecklist); break;
-      case "columns": runAction(cmdInsertColumns); break;
-      case "table": runAction(cmdInsertTable); break;
-      case "quote": runAction(cmdBlockquote); break;
-      case "code": runAction(cmdCode); break;
-      case "bold": runAction(cmdBold); break;
-      case "extrabold": runAction(cmdExtraBold); break;
+      case "h1": executeCommand(cmdHeading1); break;
+      case "h2": executeCommand(cmdHeading2); break;
+      case "h3": executeCommand(cmdHeading3); break;
+      case "bullet": executeCommand(cmdListItem); break;
+      case "number": executeCommand(cmdOrderedList); break;
+      case "todo": executeCommand(cmdChecklist); break;
+      case "columns": executeCommand(cmdInsertColumns); break;
+      case "table": executeCommand(cmdInsertTable); break;
+      case "quote": executeCommand(cmdBlockquote); break;
+      case "code": executeCommand(cmdCode); break;
+      case "bold": executeCommand(cmdBold); break;
+      case "extrabold": executeCommand(cmdExtraBold); break;
     }
 
     setSlashMenu(null);
@@ -450,7 +526,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, []);
+  }, [isMobile]);
 
   // --- MARKDOWN SHORTCUTS & TABLE TAB HANDLER ---
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -531,14 +607,13 @@ export default function RichTextEditor({ value, onChange }: Props) {
     if (e.ctrlKey || e.metaKey) {
       if (e.key === "z") {
         e.preventDefault();
-        document.execCommand("undo");
-        onChange(ref.current?.innerHTML || "");
+        if (e.shiftKey) redo();
+        else undo();
         return;
       }
       if (e.key === "y") {
         e.preventDefault();
-        document.execCommand("redo");
-        onChange(ref.current?.innerHTML || "");
+        redo();
         return;
       }
     }
@@ -659,7 +734,17 @@ export default function RichTextEditor({ value, onChange }: Props) {
     <div className="relative w-full group min-h-[60vh]">
       {/* [UPDATED] STICKY TOOLBAR */}
       <div className="sticky -top-[1.48rem] z-[100] bg-white/80 backdrop-blur-md border-b mb-4 -mx-2 px-2 py-1">
-        {editorEl && <Toolbar refEl={editorEl} onChange={onChange} />}
+        {editorEl && (
+          <Toolbar 
+            refEl={editorEl} 
+            onChange={onChange} 
+            spellCheckEnabled={spellCheckEnabled}
+            onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
+            undo={undo}
+            redo={redo}
+            onExecute={executeCommand}
+          />
+        )}
       </div>
 
       {/* [NEW] SLASH COMMAND MENU */}
@@ -742,6 +827,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
       <div
         ref={ref}
         contentEditable
+        spellCheck={spellCheckEnabled}
         suppressContentEditableWarning
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
@@ -767,7 +853,17 @@ export default function RichTextEditor({ value, onChange }: Props) {
             rte w-full outline-none text-slate-700 leading-relaxed pb-20 relative z-10 px-2
             
             /* --- TYPOGRAPHY STYLES --- */
-            [&_.text-left]:text-left [&_.text-center]:text-center [&_.text-right]:text-right [&_.text-justify]:text-justify
+            /* [FIX] Ensure alignment classes work on any block element */
+            [&_.text-left]:text-left
+            [&_.text-center]:text-center
+            [&_.text-right]:text-right
+            [&_.text-justify]:text-justify
+            
+            /* [NEW] Higher specificity for common block elements */
+            [&_p.text-center]:text-center [&_h1.text-center]:text-center [&_h2.text-center]:text-center [&_h3.text-center]:text-center [&_blockquote.text-center]:text-center
+            [&_p.text-right]:text-right [&_h1.text-right]:text-right [&_h2.text-right]:text-right [&_h3.text-right]:text-right [&_blockquote.text-right]:text-right
+            [&_p.text-justify]:text-justify [&_h1.text-justify]:text-justify [&_h2.text-justify]:text-justify [&_h3.text-justify]:text-justify [&_blockquote.text-justify]:text-justify
+            
             [&_h1]:text-4xl [&_h1]:font-extrabold [&_h1]:text-slate-900 [&_h1]:mb-4 [&_h1]:mt-6 [&_h1]:block [&_h1]:!leading-tight
             [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-slate-800 [&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:block
             [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:block
