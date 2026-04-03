@@ -4,7 +4,7 @@
 import { 
   Type, Bold, Heading1, Heading2, Heading3, 
   List, ListOrdered, SquareCheck, Quote, Code, 
-  TableIcon, Columns2
+  TableIcon, Columns2, ChevronDown
 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
@@ -13,21 +13,23 @@ type CommandItem = {
   label: string;
   icon: React.ReactNode;
   action: string;
+  aliases?: string[];
 };
 
 const COMMANDS: CommandItem[] = [
-  { id: "h1", label: "Heading 1", icon: <Heading1 size={16} />, action: "h1" },
-  { id: "h2", label: "Heading 2", icon: <Heading2 size={16} />, action: "h2" },
-  { id: "h3", label: "Heading 3", icon: <Heading3 size={16} />, action: "h3" },
-  { id: "bullet", label: "Bullet List", icon: <List size={16} />, action: "bullet" },
-  { id: "number", label: "Numbered List", icon: <ListOrdered size={16} />, action: "number" },
-  { id: "todo", label: "To-do List", icon: <SquareCheck size={16} />, action: "todo" },
-  { id: "columns", label: "2 Columns", icon: <Columns2 size={16} />, action: "columns" },
-  { id: "table", label: "Table", icon: <TableIcon size={16} />, action: "table" },
-  { id: "quote", label: "Quote", icon: <Quote size={16} />, action: "quote" },
-  { id: "code", label: "Code Block", icon: <Code size={16} />, action: "code" },
-  { id: "bold", label: "Bold", icon: <Bold size={16} />, action: "bold" },
-  { id: "extrabold", label: "Extra Bold", icon: <Type size={16} className="font-black" />, action: "extrabold" },
+  { id: "h1", label: "Heading 1", icon: <Heading1 size={16} />, action: "h1", aliases: ["h1", "heading1", "judul1"] },
+  { id: "h2", label: "Heading 2", icon: <Heading2 size={16} />, action: "h2", aliases: ["h2", "heading2", "judul2"] },
+  { id: "h3", label: "Heading 3", icon: <Heading3 size={16} />, action: "h3", aliases: ["h3", "heading3", "judul3"] },
+  { id: "bullet", label: "Bullet List", icon: <List size={16} />, action: "bullet", aliases: ["ul", "bullet", "list", "poin"] },
+  { id: "number", label: "Numbered List", icon: <ListOrdered size={16} />, action: "number", aliases: ["ol", "number", "list", "angka"] },
+  { id: "todo", label: "To-do List", icon: <SquareCheck size={16} />, action: "todo", aliases: ["task", "todo", "checklist", "tugas"] },
+  { id: "collapsible", label: "Collapsible", icon: <ChevronDown size={16} />, action: "collapsible", aliases: ["collapsible", "section", "details", "summary", "lipat"] },
+  { id: "columns", label: "2 Columns", icon: <Columns2 size={16} />, action: "columns", aliases: ["cols", "columns", "layout", "kolom"] },
+  { id: "table", label: "Table", icon: <TableIcon size={16} />, action: "table", aliases: ["table", "grid", "tabel"] },
+  { id: "quote", label: "Quote", icon: <Quote size={16} />, action: "quote", aliases: ["quote", "cite", "kutipan"] },
+  { id: "code", label: "Code Block", icon: <Code size={16} />, action: "code", aliases: ["code", "pre", "kode"] },
+  { id: "bold", label: "Bold", icon: <Bold size={16} />, action: "bold", aliases: ["b", "bold", "tebal"] },
+  { id: "extrabold", label: "Extra Bold", icon: <Type size={16} className="font-black" />, action: "extrabold", aliases: ["black", "extrabold", "tebal banget"] },
 ];
 
 type Props = {
@@ -40,9 +42,13 @@ export default function SlashPopover({ onSelect, onClose, filter }: Props) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const filteredCommands = COMMANDS.filter(cmd => 
-    cmd.label.toLowerCase().includes(filter.toLowerCase())
-  );
+  const filteredCommands = COMMANDS.filter(cmd => {
+    const searchStr = filter.toLowerCase();
+    return (
+      cmd.label.toLowerCase().includes(searchStr) ||
+      cmd.aliases?.some(alias => alias.toLowerCase().includes(searchStr))
+    );
+  });
 
   useEffect(() => {
     setSelectedIndex(0);

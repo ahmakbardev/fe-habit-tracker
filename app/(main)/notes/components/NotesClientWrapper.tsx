@@ -50,36 +50,89 @@ export default function NotesClientWrapper() {
 
   // --- [NEW] RESIZABLE & COLLAPSIBLE STATE ---
   const [sidebarWidth, setSidebarWidth] = useState(240);
-  const [contentWidth, setContentWidth] = useState(320);
+  const [contentWidth, setContentWidth] = useState(400);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isContentCollapsed, setIsContentCollapsed] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
   const MIN_SIDEBAR_WIDTH = 180;
-  const MIN_CONTENT_WIDTH = 240;
+  const MIN_CONTENT_WIDTH = 340;
 
   const handleSidebarResize = useCallback((deltaX: number) => {
+    if (isSidebarCollapsed) {
+      if (deltaX > 2) {
+        setIsSidebarCollapsed(false);
+        setSidebarWidth(MIN_SIDEBAR_WIDTH);
+      }
+      return;
+    }
     setSidebarWidth(prev => {
       const newWidth = prev + deltaX;
-      // Jika ditarik terlalu kecil, otomatis collapse
-      if (newWidth < 100) {
+      return Math.min(newWidth, 400);
+    });
+  }, [isSidebarCollapsed, MIN_SIDEBAR_WIDTH]);
+
+  const handleSidebarResizeEnd = useCallback(() => {
+    setIsResizing(false);
+    if (isSidebarCollapsed) return;
+    setSidebarWidth(prev => {
+      if (prev < 120) {
         setIsSidebarCollapsed(true);
         return 240;
       }
-      return Math.min(Math.max(newWidth, MIN_SIDEBAR_WIDTH), 400);
+      return Math.max(prev, MIN_SIDEBAR_WIDTH);
     });
-  }, []);
+  }, [isSidebarCollapsed, MIN_SIDEBAR_WIDTH]);
 
   const handleContentResize = useCallback((deltaX: number) => {
+    if (isContentCollapsed) {
+      if (deltaX > 2) {
+        setIsContentCollapsed(false);
+        setContentWidth(MIN_CONTENT_WIDTH);
+      }
+      return;
+    }
     setContentWidth(prev => {
       const newWidth = prev + deltaX;
-      if (newWidth < 100) {
+      return Math.min(newWidth, 500);
+    });
+  }, [isContentCollapsed, MIN_CONTENT_WIDTH]);
+
+  const handleContentResizeEnd = useCallback(() => {
+    setIsResizing(false);
+    if (isContentCollapsed) return;
+    setContentWidth(prev => {
+      if (prev < 150) {
         setIsContentCollapsed(true);
         return 320;
       }
-      return Math.min(Math.max(newWidth, MIN_CONTENT_WIDTH), 500);
+      return Math.max(prev, MIN_CONTENT_WIDTH);
     });
-  }, []);
+  }, [isContentCollapsed, MIN_CONTENT_WIDTH]);
+
+  // --- UI COMPONENTS: Notch Button ---
+  const ExpandButton = ({ onClick, top, title }: { onClick: () => void, top: string, title: string }) => (
+    <div 
+      className="absolute z-[60] cursor-pointer group/expand"
+      style={{ left: "-1px", top }}
+      onClick={onClick}
+      title={title}
+    >
+      <svg width="24" height="60" viewBox="0 0 24 60" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-sm">
+        <path 
+          d="M0 10C0 4.47715 4.47715 0 10 0L12 0C18.6274 0 24 5.37258 24 12V48C24 54.6274 18.6274 60 12 60L10 60C4.47715 60 0 55.5228 0 50V10Z" 
+          fill="white"
+        />
+        <path 
+          d="M0.5 10C0.5 4.7533 4.7533 0.5 10 0.5L12 0.5C18.3513 0.5 23.5 5.64873 23.5 12V48C23.5 54.3513 18.3513 59.5 12 59.5L10 59.5C4.7533 59.5 0.5 55.2467 0.5 50V10Z" 
+          stroke="#E2E8F0"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center pl-1">
+        <ChevronRight size={16} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
+      </div>
+    </div>
+  );
 
   // --- HELPER: Media URL Normalization ---
   const normalizeMediaUrls = useCallback((html: string): string => {
@@ -458,14 +511,13 @@ export default function NotesClientWrapper() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-white relative">
-      {/* SIDEBAR EXPAND TRIGGER (Only when collapsed) */}
+      {/* SIDEBAR EXPAND TRIGGER */}
       {!isMobile && isSidebarCollapsed && (
-        <button 
-          onClick={() => setIsSidebarCollapsed(false)}
-          className="absolute left-0 top-6 z-[60] bg-white border border-l-0 border-slate-200 p-1.5 rounded-r-md shadow-sm hover:bg-slate-50 transition-colors"
-        >
-          <ChevronRight size={16} className="text-slate-500" />
-        </button>
+        <ExpandButton 
+          onClick={() => setIsSidebarCollapsed(false)} 
+          top="24px" 
+          title="Expand Sidebar" 
+        />
       )}
 
       {!isMobile && (
@@ -493,13 +545,12 @@ export default function NotesClientWrapper() {
               onDeleteFolder={handleDeleteFolder}
             />
           </div>
-          {!isSidebarCollapsed && (
-            <Resizer 
-              onResize={handleSidebarResize} 
-              onResizeStart={() => setIsResizing(true)}
-              onResizeEnd={() => setIsResizing(false)}
-            />
-          )}
+          <Resizer 
+            onResize={handleSidebarResize} 
+            onResizeStart={() => setIsResizing(true)}
+            onResizeEnd={handleSidebarResizeEnd}
+            className={isSidebarCollapsed ? "left-0 !w-4 opacity-0 hover:opacity-100 transition-opacity" : ""}
+          />
         </div>
       )}
 
@@ -536,21 +587,19 @@ export default function NotesClientWrapper() {
 
             {activeWorkspaceId !== "" && (!isMobile || !selectedNote) && (
               <div 
-                style={{ width: isContentCollapsed ? 48 : contentWidth }}
+                style={{ width: isMobile ? "100%" : (isContentCollapsed ? 48 : contentWidth) }}
                 className={clsx(
                   "relative h-full flex-shrink-0 border-r border-slate-200 group/content",
                   !isResizing && "transition-[width] duration-300 ease-in-out"
                 )}
               >
                 {isContentCollapsed ? (
-                  <div className="h-full w-full flex flex-col items-center py-6 gap-4 bg-slate-50/50">
-                    <button 
-                      onClick={() => setIsContentCollapsed(false)}
-                      className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
-                      title="Expand List"
-                    >
-                      <ChevronRight size={20} className="text-slate-500" />
-                    </button>
+                  <div className="h-full w-full flex flex-col items-center bg-slate-50/50 relative">
+                    <ExpandButton 
+                      onClick={() => setIsContentCollapsed(false)} 
+                      top="120px" 
+                      title="Expand List" 
+                    />
                   </div>
                 ) : (
                   <NotesContentPanel
@@ -571,11 +620,11 @@ export default function NotesClientWrapper() {
                     isMobile={isMobile}
                   />
                 )}
-                {!isContentCollapsed && !isMobile && (
+                {!isMobile && (
                    <Resizer 
                     onResize={handleContentResize} 
                     onResizeStart={() => setIsResizing(true)}
-                    onResizeEnd={() => setIsResizing(false)}
+                    onResizeEnd={handleContentResizeEnd}
                    />
                 )}
               </div>

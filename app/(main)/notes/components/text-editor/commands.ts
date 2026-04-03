@@ -5,7 +5,8 @@ import {
   toggleTextColor,
   toggleHighlight,
   toggleCheckList,
-  toggleExtraBold
+  toggleExtraBold,
+  isInColumn
 } from "./html-utils";
 import { createColumns } from "./column-utils";
 
@@ -113,7 +114,37 @@ export const cmdChecklist = (ref: EditorRef, onChange: OnChangeFn) => {
 
 // --- COLUMNS ---
 export const cmdInsertColumns = (ref: EditorRef, onChange: OnChangeFn) => {
+  if (isInColumn()) {
+    alert("Nesting columns is not supported. Please create columns in the main editor area.");
+    return;
+  }
   const html = createColumns(2);
+  insertHTML(html);
+  onChange(ref.current?.innerHTML || "");
+};
+
+// --- COLLAPSIBLE SECTION ---
+export const cmdInsertCollapsible = (ref: EditorRef, onChange: OnChangeFn) => {
+  const id = `section-${Math.random().toString(36).substr(2, 9)}`;
+  const html = `
+    <details class="collapsible-section mx-1.5" id="${id}" open>
+      <summary>
+        <div class="section-toggle-area" contenteditable="false">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <span class="section-title" data-placeholder="Section Title..."></span>
+        <div class="section-actions" contenteditable="false">
+          <button class="btn-section-more" title="More options" data-section-id="${id}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+          </button>
+        </div>
+      </summary>
+      <div class="content">
+        <p><br /></p>
+      </div>
+    </details>
+    <p><br /></p>
+  `;
   insertHTML(html);
   onChange(ref.current?.innerHTML || "");
 };
