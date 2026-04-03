@@ -190,26 +190,42 @@ export const toggleHighlight = (bgClass: string) => {
 export const toggleExtraBold = () => {
   saveCaretManually();
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return;
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
 
   const range = sel.getRangeAt(0);
-  const selectedText = range.toString();
-  
-  if (selectedText.length > 0) {
-    const parent = sel.anchorNode?.parentElement;
-    if (parent && parent.tagName === "SPAN" && parent.classList.contains("font-black")) {
-      const textNode = document.createTextNode(parent.textContent || "");
-      parent.replaceWith(textNode);
-    } else {
-      const span = document.createElement("span");
-      span.className = "font-black text-slate-900";
+  let node = sel.anchorNode;
+  if (node?.nodeType === 3) node = node.parentElement;
+
+  // Cari apakah selection sudah berada di dalam span.font-black
+  const existingExtraBold = (node as HTMLElement)?.closest(".font-black");
+
+  if (existingExtraBold) {
+    // UNWRAP: Kembalikan ke teks biasa
+    const parent = existingExtraBold.parentNode;
+    while (existingExtraBold.firstChild) {
+      parent?.insertBefore(existingExtraBold.firstChild, existingExtraBold);
+    }
+    parent?.removeChild(existingExtraBold);
+  } else {
+    // WRAP: Bungkus dengan span font-black
+    const span = document.createElement("span");
+    // font-black di Tailwind adalah font-weight 900
+    span.className = "font-black text-slate-900 !font-black"; 
+    span.style.fontWeight = "900"; // Force inline style agar pasti
+
+    try {
       range.surroundContents(span);
+    } catch (e) {
+      // Jika surroundContents gagal (karena seleksi parsial antar elemen), gunakan cara manual
+      const content = range.extractContents();
+      span.appendChild(content);
+      range.insertNode(span);
     }
   }
-  
-  sel.removeAllRanges();
-};
 
+  sel.removeAllRanges();
+  setTimeout(restoreCaretManually, 0);
+};
 export const toggleCheckList = () => {
   document.execCommand("insertUnorderedList");
   const sel = window.getSelection();

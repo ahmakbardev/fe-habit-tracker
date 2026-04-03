@@ -14,7 +14,6 @@ import {
   Heading1,
   Link as LinkIcon,
   Image as ImageIcon,
-  Highlighter,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -27,8 +26,9 @@ import {
   Redo,
   Columns2,
   Type,
-  ChevronDown,
+  ListCollapse,
   Languages,
+  CaseUpper,
 } from "lucide-react";
 
 import ToolbarButton from "./ToolbarButton";
@@ -115,14 +115,7 @@ export default function Toolbar({
       {/* FORMATTING */}
       <ToolbarButton icon={<Bold size={18} />} onClick={() => run(cmdBold)} />
       <ToolbarButton
-        icon={
-          <div className="relative">
-            <Type size={18} className="font-black" />
-            <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-slate-200 rounded px-0.5">
-              +
-            </span>
-          </div>
-        }
+        icon={<CaseUpper size={18} />}
         onClick={() => run(cmdExtraBold)}
         title="Extra Bold"
       />
@@ -133,11 +126,6 @@ export default function Toolbar({
       <ToolbarButton
         icon={<Underline size={18} />}
         onClick={() => run(cmdUnderline)}
-      />
-      <ToolbarButton
-        icon={<Highlighter size={18} />}
-        onClick={() => run((ref, oc) => cmdHighlight(ref, oc, "bg-yellow-200"))}
-        title="Highlight (Yellow)"
       />
 
       <div className="w-[1px] h-6 bg-slate-200 mx-1" />
@@ -230,7 +218,7 @@ export default function Toolbar({
       />
 
       <ToolbarButton
-        icon={<ChevronDown size={18} />}
+        icon={<ListCollapse size={18} />}
         onClick={() => run(cmdInsertCollapsible)}
         title="Collapsible Section"
       />
