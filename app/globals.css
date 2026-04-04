@@ -169,9 +169,9 @@ details.collapsible-section .btn-section-more:focus {
   @apply outline-none ring-0;
 }
 
-/* Simple Editor Popover Menu - Position adjusted for the new layout */
+/* Simple Editor Popover Menu - Dynamic coordinates used in JS */
 .section-menu-popover {
-  @apply absolute right-2 top-[80%] mt-1 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl z-[2000] py-1 animate-in fade-in zoom-in duration-150;
+  @apply absolute w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl z-[2000] py-1 animate-in fade-in zoom-in duration-150;
 }
 
 .section-menu-item {
@@ -181,3 +181,9 @@ details.collapsible-section .btn-section-more:focus {
 details.collapsible-section .content {
   @apply p-4 border-t border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-950 pointer-events-auto;
 }
+
+/* Styled Jump Link Button inside Editor */
+.section-jump-btn {
+  @apply inline-flex items-center px-2 py-0.5 my-1 mx-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 rounded-md text-sm font-bold transition-all hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 dark:hover:text-white cursor-pointer align-middle;
+}
+

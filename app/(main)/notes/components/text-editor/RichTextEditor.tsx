@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import Toolbar from "./Toolbar";
 import ImageResizer from "./ImageResizer";
 import { toggleBlockType, toggleList, toggleOrderedList, insertHTML } from "./html-utils";
-import { Heading1, List, ListOrdered, Quote } from "lucide-react";
+import { Heading1, Link2, List, ListOrdered, Quote, Trash2 } from "lucide-react";
 import TableBubbleMenu from "./TableBubbleMenu";
 import { handleTableTab } from "./table-utils";
 import { ensureCheckboxInLi } from "./html-utils";
@@ -18,7 +18,7 @@ import {
   cmdHeading1, cmdHeading2, cmdHeading3, 
   cmdListItem, cmdOrderedList, cmdChecklist,
   cmdInsertColumns, cmdInsertTable, cmdBlockquote, 
-  cmdCode, cmdBold, cmdExtraBold 
+  cmdCode, cmdBold, cmdExtraBold, cmdInsertCollapsible 
 } from "./commands";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -287,8 +287,45 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
   }, [value, editorEl]);
 
+  const [sectionMenu, setSectionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+
+  // Close section menu on click outside
+  useEffect(() => {
+    if (!sectionMenu) return;
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".section-menu-popover") && !target.closest(".btn-section-more")) {
+        setSectionMenu(null);
+      }
+    };
+    window.addEventListener("click", handleGlobalClick);
+    return () => window.removeEventListener("click", handleGlobalClick);
+  }, [sectionMenu]);
+
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    
+    // --- JUMP LINK LOGIC ---
+    const jumpBtn = target.closest(".section-jump-btn") as HTMLElement;
+    if (jumpBtn) {
+      const targetId = jumpBtn.getAttribute("data-target");
+      if (targetId) {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          targetEl.classList.add("section-highlight");
+          setTimeout(() => targetEl.classList.remove("section-highlight"), 2000);
+          
+          // Manually set focus/selection inside the button if needed, 
+          // but browser default click usually handles this.
+        }
+      }
+      return;
+    }
+
+    // --- CHECKBOX LOGIC ---
     if (target.tagName === "INPUT" && (target as HTMLInputElement).type === "checkbox") {
       e.stopPropagation();
       const checkbox = target as HTMLInputElement;
@@ -297,6 +334,64 @@ export default function RichTextEditor({ value, onChange }: Props) {
       if (ref.current) onChange(ref.current.innerHTML);
       return;
     }
+
+    // --- COLLAPSIBLE SECTION LOGIC ---
+    const summary = target.closest("summary");
+    if (summary) {
+      const toggleArea = target.closest(".section-toggle-area");
+      const details = summary.parentElement as HTMLDetailsElement;
+      const moreBtn = target.closest(".btn-section-more") as HTMLButtonElement;
+
+      if (toggleArea) {
+        // Toggle the open state only if arrow is clicked
+        e.preventDefault();
+        e.stopPropagation();
+        const isOpen = details.hasAttribute("open");
+        if (isOpen) details.removeAttribute("open");
+        else details.setAttribute("open", "");
+        
+        if (ref.current) onChange(ref.current.innerHTML);
+      } else if (moreBtn) {
+        // Handle more button click (Popover)
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const sectionId = moreBtn.getAttribute("data-section-id") || "";
+        
+        // TOGGLE: If same menu is already open, close it
+        if (sectionMenu && sectionMenu.id === sectionId) {
+          setSectionMenu(null);
+          return;
+        }
+
+        const rect = moreBtn.getBoundingClientRect();
+        const editorRect = ref.current?.getBoundingClientRect();
+        
+        if (editorRect) {
+          const popoverWidth = 192; // w-48 is 12rem = 192px
+          let x = rect.left - editorRect.left;
+          
+          // Check if popover would overflow right side of screen
+          if (rect.left + popoverWidth > window.innerWidth - 16) {
+            // Shift left: align right edge of popover with right edge of button
+            x = (rect.right - editorRect.left) - popoverWidth;
+          }
+
+          setSectionMenu({
+            id: sectionId,
+            x: x,
+            y: rect.bottom - editorRect.top
+          });
+        }
+      } else {
+        // ALWAYS prevent default on summary to stop browser-native toggle
+        // This allows clicking the title to focus it without the section collapsing/expanding.
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // --- COLUMN LOGIC ---
     const columnContainer = target.closest(".rte-columns") as HTMLElement;
     if (columnContainer) {
       if (target.classList.contains("add-column-btn")) {
@@ -339,6 +434,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
       case "bullet": executeCommand(cmdListItem); break;
       case "number": executeCommand(cmdOrderedList); break;
       case "todo": executeCommand(cmdChecklist); break;
+      case "collapsible": executeCommand(cmdInsertCollapsible); break;
       case "columns": executeCommand(cmdInsertColumns); break;
       case "table": executeCommand(cmdInsertTable); break;
       case "quote": executeCommand(cmdBlockquote); break;
@@ -348,6 +444,24 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
     setSlashMenu(null);
   };
+
+  // --- AUTO-SCROLL TO HASH ---
+  useEffect(() => {
+    if (mounted && window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      if (hash.startsWith("section-")) {
+        // Wait a bit for the content to fully render
+        setTimeout(() => {
+          const targetEl = document.getElementById(hash);
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+            targetEl.classList.add("section-highlight");
+            setTimeout(() => targetEl.classList.remove("section-highlight"), 2000);
+          }
+        }, 500);
+      }
+    }
+  }, [mounted]);
 
   const [floatingMenu, setFloatingMenu] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
@@ -444,6 +558,29 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const text = e.clipboardData.getData("text/plain");
+
+    // --- DETECT SECTION LINK FOR TRANSFORMATION ---
+    try {
+      const url = new URL(text);
+      if (url.origin === window.location.origin && 
+          url.pathname === window.location.pathname && 
+          url.hash.startsWith("#section-")) {
+        
+        e.preventDefault();
+        const sectionId = url.hash.substring(1);
+        const targetEl = document.getElementById(sectionId);
+        const titleEl = targetEl?.querySelector(".section-title");
+        const titleText = titleEl?.textContent?.trim() || "Section";
+
+        const btnHtml = `<span class="section-jump-btn" data-target="${sectionId}">#${titleText}</span>&nbsp;`;
+        insertHTML(btnHtml);
+        if (ref.current) onChange(ref.current.innerHTML);
+        return;
+      }
+    } catch (err) {
+      // Not a valid URL, continue with normal paste
+    }
+
     if (isMarkdown(text)) {
       e.preventDefault(); const html = markdownToHtml(text); insertHTML(html);
       if (ref.current) onChange(ref.current.innerHTML);
@@ -504,6 +641,46 @@ export default function RichTextEditor({ value, onChange }: Props) {
         </div>
       )}
 
+      {/* SECTION MENU POPOVER */}
+      {sectionMenu && createPortal(
+        <div 
+          className="section-menu-popover"
+          style={{ 
+            left: sectionMenu.x + (ref.current?.getBoundingClientRect().left || 0), 
+            top: sectionMenu.y + (ref.current?.getBoundingClientRect().top || 0) 
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="section-menu-item"
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.hash = sectionMenu.id;
+              navigator.clipboard.writeText(url.toString());
+              setSectionMenu(null);
+            }}
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            Copy Link to Section
+          </button>
+          <button 
+            className="section-menu-item text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+            onClick={() => {
+              const el = document.getElementById(sectionMenu.id);
+              if (el) {
+                el.remove();
+                if (ref.current) onChange(ref.current.innerHTML);
+              }
+              setSectionMenu(null);
+            }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete section
+          </button>
+        </div>,
+        document.body
+      )}
+
       {showPlaceholder && <EmptyState />}
 
       <div
@@ -521,6 +698,15 @@ export default function RichTextEditor({ value, onChange }: Props) {
         onInput={(e) => {
           const target = e.target as HTMLElement;
           if (target.tagName === "INPUT") return;
+
+          // Clean up empty jump buttons
+          const emptyBtns = target.querySelectorAll(".section-jump-btn");
+          emptyBtns.forEach(btn => {
+            if (btn.textContent?.trim() === "") {
+              btn.remove();
+            }
+          });
+
           const html = (ref.current as HTMLDivElement).innerHTML;
           const cleanHtml = html === "<br>" ? "" : html;
           const currentValue = typeof value === "string" ? value : "";
