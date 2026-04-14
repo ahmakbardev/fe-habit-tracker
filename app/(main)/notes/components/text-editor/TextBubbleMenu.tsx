@@ -3,15 +3,20 @@
 import { 
   Bold, Italic, Underline, Heading1, Heading2, Heading3, 
   List, ListOrdered, SquareCheck, Quote, Code, 
-  ChevronRight, ChevronLeft, Undo, Redo, Type, CaseUpper
+  ChevronRight, ChevronLeft, Undo, Redo, Type, CaseUpper,
+  Link as LinkIcon
 } from "lucide-react";
 import { 
   cmdBold, cmdExtraBold, cmdItalic, cmdUnderline, 
   cmdHeading1, cmdHeading2, cmdHeading3,
   cmdListItem, cmdOrderedList, cmdChecklist,
-  cmdBlockquote, cmdCode, cmdUndo, cmdRedo
+  cmdBlockquote, cmdCode, cmdUndo, cmdRedo,
+  cmdLink
 } from "./commands";
-import { RefObject } from "react";
+import { RefObject, useState } from "react";
+import ResponsivePopover from "./ResponsivePopover";
+import LinkPopover from "./popovers/LinkPopover";
+import { saveCaretManually, restoreCaretManually } from "./caret-utils";
 
 type Props = {
   editorRef: RefObject<HTMLDivElement>;
@@ -54,6 +59,42 @@ export default function TextBubbleMenu({ editorRef, onChange, onClose, isList }:
       <button onClick={() => handleAction(cmdHeading1)} className="p-1.5 hover:bg-slate-700 rounded transition font-bold text-xs" title="Heading 1">H1</button>
       <button onClick={() => handleAction(cmdHeading2)} className="p-1.5 hover:bg-slate-700 rounded transition font-bold text-xs" title="Heading 2">H2</button>
       <button onClick={() => handleAction(cmdHeading3)} className="p-1.5 hover:bg-slate-700 rounded transition font-bold text-xs" title="Heading 3">H3</button>
+
+      <div className="w-px h-4 bg-slate-700 mx-1" />
+
+      {/* LINK */}
+      <ResponsivePopover
+        title="Insert Link"
+        trigger={
+          <button 
+            onClick={() => {
+              editorRef.current?.focus();
+              saveCaretManually();
+            }} 
+            className="p-1.5 hover:bg-slate-700 rounded transition" 
+            title="Insert Link"
+          >
+            <LinkIcon size={16} />
+          </button>
+        }
+      >
+        {(close) => (
+          <div className="text-slate-900 bg-white p-1 rounded-lg">
+            <LinkPopover
+              initialAlias={window.getSelection()?.toString() || ""}
+              onSubmit={({ alias, url }) => {
+                setTimeout(() => {
+                  editorRef.current?.focus();
+                  restoreCaretManually();
+                  handleAction((r, oc) => cmdLink(r, oc, alias, url));
+                  close();
+                  onClose(); // Tutup bubble menu juga
+                }, 0);
+              }}
+            />
+          </div>
+        )}
+      </ResponsivePopover>
 
       <div className="w-px h-4 bg-slate-700 mx-1" />
 

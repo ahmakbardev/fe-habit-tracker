@@ -23,6 +23,91 @@ import {
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
+// --- LINK EDITOR POPOVER ---
+const LinkEditorPopover = ({ 
+  linkEl, 
+  onClose, 
+  onChange 
+}: { 
+  linkEl: HTMLAnchorElement; 
+  onClose: () => void; 
+  onChange: (html: string) => void 
+}) => {
+  const [url, setUrl] = useState(linkEl.getAttribute("href") || "");
+  const [text, setText] = useState(linkEl.textContent || "");
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    linkEl.setAttribute("href", url);
+    linkEl.textContent = text;
+    const rte = linkEl.closest(".rte") as HTMLElement;
+    onChange(rte?.innerHTML || "");
+    onClose();
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const parent = linkEl.parentNode;
+    if (parent) {
+      while (linkEl.firstChild) {
+        parent.insertBefore(linkEl.firstChild, linkEl);
+      }
+      linkEl.remove();
+      const rte = (parent as HTMLElement).closest(".rte") as HTMLElement;
+      onChange(rte?.innerHTML || "");
+    }
+    onClose();
+  };
+
+  return (
+    <div 
+      className="p-3 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700/50 flex flex-col gap-2 min-w-[260px]"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex flex-col gap-1">
+        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">URL</label>
+        <input 
+          type="text" 
+          value={url} 
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSave(e as unknown as React.MouseEvent); }}
+          className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-sm outline-none focus:border-blue-500 transition-colors"
+          autoFocus
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Display Text</label>
+        <input 
+          type="text" 
+          value={text} 
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSave(e as unknown as React.MouseEvent); }}
+          className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-sm outline-none focus:border-blue-500 transition-colors"
+        />
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <button 
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleSave}
+          className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 rounded-md transition-colors"
+        >
+          Save
+        </button>
+        <button 
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleRemove}
+          className="bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white text-xs font-bold px-2 py-1.5 rounded-md transition-all"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // --- RICH EMPTY STATE ---
 const EmptyState = () => (
   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-0">
@@ -60,6 +145,11 @@ export default function RichTextEditor({ value, onChange }: Props) {
   const [isFocused, setIsFocused] = useState(false);
   const [isInsideList, setIsInsideList] = useState(false);
   const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
+
+  // --- POPUPS & MENUS ---
+  const [floatingMenu, setFloatingMenu] = useState<{ x: number; y: number } | null>(null);
+  const [linkEditor, setLinkEditor] = useState<{ x: number; y: number; height: number; linkEl: HTMLAnchorElement } | null>(null);
+  const [isMouseDown, setIsMouseDown] = useState(false);
 
   // --- HISTORY MANAGEMENT ---
   const [history, setHistory] = useState<string[]>([]);
@@ -402,6 +492,14 @@ export default function RichTextEditor({ value, onChange }: Props) {
         if (ref.current) onChange(ref.current.innerHTML);
       }
     }
+
+    // --- TABLE SELECTION LOGIC ---
+    const table = target.closest("table");
+    if (table) {
+      setActiveTable(table as HTMLTableElement);
+    } else {
+      setActiveTable(null);
+    }
   };
 
   const handleKeyUp = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -463,16 +561,79 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
   }, [mounted]);
 
-  const [floatingMenu, setFloatingMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const handleMouseDown = () => setIsMouseDown(true);
+    const handleMouseUp = () => {
+      setIsMouseDown(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
   useEffect(() => {
     const handleSelectionChange = () => {
+      // Check if focus is inside the Link Editor Popover - if so, don't close it!
+      const activeEl = document.activeElement;
+      if (activeEl?.closest(".link-editor-popover-container")) {
+        return;
+      }
+
+      if (isMouseDown) return;
+
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !ref.current?.contains(sel.anchorNode)) { setFloatingMenu(null); return; }
+      if (!sel || !ref.current?.contains(sel.anchorNode)) {
+        setFloatingMenu(null);
+        setLinkEditor(null);
+        return;
+      }
+
+      // 1. Detect if we are inside or blocking a link (<a>)
+      let linkEl: HTMLAnchorElement | null = null;
+      const range = sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+      
+      if (range) {
+        let node: Node | null = sel.anchorNode;
+        if (node?.nodeType === 3) node = node.parentElement;
+        linkEl = (node as HTMLElement)?.closest("a");
+
+        if (!linkEl && !sel.isCollapsed) {
+          let common = range.commonAncestorContainer;
+          if (common.nodeType === 3) common = common.parentElement!;
+          linkEl = (common as HTMLElement).closest("a");
+        }
+      }
+
+      // Check if it's a standard link (not jump btn)
+      if (linkEl && ref.current.contains(linkEl) && !linkEl.classList.contains("section-jump-btn")) {
+        const rect = linkEl.getBoundingClientRect();
+        setLinkEditor({
+          x: rect.left + rect.width / 2,
+          y: rect.bottom, 
+          height: rect.height,
+          linkEl: linkEl as HTMLAnchorElement
+        });
+        setFloatingMenu(null);
+        return;
+      } else {
+        setLinkEditor(null);
+      }
+
+      // 2. Standard Floating Menu for blocked text
+      if (sel.isCollapsed) {
+        setFloatingMenu(null);
+        return;
+      }
+
       const anchorParent = sel.anchorNode?.parentElement;
       setIsInsideList(!!anchorParent?.closest("li"));
-      const range = sel.getRangeAt(0); const rects = range.getClientRects();
-      if (rects.length === 0) return;
-      const firstRect = rects[0]; const editorRect = ref.current?.getBoundingClientRect();
+      const rects = range?.getClientRects();
+      if (!rects || rects.length === 0) return;
+      const firstRect = rects[0]; 
+      const editorRect = ref.current?.getBoundingClientRect();
       if (editorRect) {
         let x = firstRect.left - editorRect.left + firstRect.width / 2;
         const y = firstRect.top - editorRect.top;
@@ -483,7 +644,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
     };
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [isMobile]);
+  }, [isMobile, isMouseDown]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Backspace") {
@@ -491,6 +652,19 @@ export default function RichTextEditor({ value, onChange }: Props) {
       if (sel && sel.isCollapsed) {
         const node = sel.anchorNode;
         const parent = (node?.nodeType === 3 ? node.parentElement : node) as HTMLElement;
+        
+        // Handle Backspace in empty Section Title
+        const title = parent?.closest(".section-title") as HTMLElement;
+        if (title && title.textContent?.trim() === "") {
+          e.preventDefault();
+          const details = title.closest("details");
+          if (details) {
+            details.remove();
+            if (ref.current) onChange(ref.current.innerHTML);
+          }
+          return;
+        }
+
         const col = parent?.closest(".rte-column") as HTMLElement;
         if (col) {
           const isEmpty = col.innerText.trim() === "" && col.querySelectorAll("img, table").length === 0;
@@ -631,6 +805,19 @@ export default function RichTextEditor({ value, onChange }: Props) {
         </div>
       )}
 
+      {linkEditor && createPortal(
+        <div 
+          className="link-editor-popover-container fixed z-[2000] -translate-x-1/2 animate-in fade-in zoom-in duration-200"
+          style={{ 
+            left: linkEditor.x, 
+            top: linkEditor.y + 10 
+          }}
+        >
+          <LinkEditorPopover linkEl={linkEditor.linkEl} onClose={() => setLinkEditor(null)} onChange={onChange} />
+        </div>,
+        document.body
+      )}
+
       <ImageResizer editorRef={ref as React.RefObject<HTMLDivElement>} selectedImage={selectedImg} setSelectedImage={setSelectedImg} onResizeEnd={() => { if (ref.current) onChange(ref.current.innerHTML); }} />
 
       {activeTable && (
@@ -704,6 +891,22 @@ export default function RichTextEditor({ value, onChange }: Props) {
           emptyBtns.forEach(btn => {
             if (btn.textContent?.trim() === "") {
               btn.remove();
+            }
+          });
+
+          // Clean up sections with empty titles
+          const titles = target.querySelectorAll(".section-title");
+          titles.forEach(title => {
+            const text = title.textContent?.trim() || "";
+            // If title is empty (and not just currently being edited to empty with a placeholder)
+            // Actually, the user wants it deleted IF it's empty.
+            // We should check if the user just deleted the last character.
+            if (text === "") {
+              const details = title.closest("details");
+              if (details) {
+                // To avoid losing focus entirely, we can insert a paragraph before/after or just remove
+                details.remove();
+              }
             }
           });
 
