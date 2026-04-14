@@ -7,10 +7,54 @@ export const markdownToHtml = (markdown: string): string => {
   const result: string[] = [];
   let inList = false;
   let isTaskList = false;
+  let inTable = false;
+  let tableHeaderProcessed = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
+
+    // 0. Table Logic
+    const isTableLine = trimmedLine.startsWith('|') && trimmedLine.endsWith('|');
+    
+    if (isTableLine) {
+      if (inList) { result.push('</ul>'); inList = false; }
+      
+      // Skip separator line (| :--- |)
+      if (trimmedLine.match(/^\|?[:\-\s|]+\|?$/)) {
+        continue;
+      }
+
+      if (!inTable) {
+        inTable = true;
+        tableHeaderProcessed = false;
+        result.push('<div class="overflow-x-auto my-4"><table class="w-full border-collapse border border-slate-300">');
+      }
+
+      const cells = trimmedLine
+        .split('|')
+        .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+        .map(cell => cell.trim());
+
+      if (!tableHeaderProcessed) {
+        result.push('<thead><tr>');
+        cells.forEach(cell => {
+          result.push(`<th class="border border-slate-300 p-2 bg-slate-50 font-semibold text-left">${parseInlineMarkdown(cell)}</th>`);
+        });
+        result.push('</tr></thead><tbody>');
+        tableHeaderProcessed = true;
+      } else {
+        result.push('<tr>');
+        cells.forEach(cell => {
+          result.push(`<td class="border border-slate-300 p-2 min-w-[50px]">${parseInlineMarkdown(cell)}</td>`);
+        });
+        result.push('</tr>');
+      }
+      continue;
+    } else if (inTable) {
+      result.push('</tbody></table></div>');
+      inTable = false;
+    }
 
     // 1. Horizontal Rule (---)
     if (/^---$/.test(trimmedLine)) {
@@ -57,7 +101,7 @@ export const markdownToHtml = (markdown: string): string => {
       continue;
     }
 
-    // Jika sampai sini, berarti bukan list/heading/hr
+    // Jika sampai sini, berarti bukan list/heading/hr/table
     if (inList) {
       result.push('</ul>');
       inList = false;
@@ -73,6 +117,10 @@ export const markdownToHtml = (markdown: string): string => {
 
     // 5. Paragraf Biasa
     result.push(`<div>${parseInlineMarkdown(line)}</div>`);
+  }
+
+  if (inTable) {
+    result.push('</tbody></table></div>');
   }
 
   if (inList) {
@@ -109,8 +157,10 @@ export const isMarkdown = (text: string): boolean => {
     /\[(.*?)\]\((.*?)\)/,
     /\*\*(.*?)\*\*/,
     /`(.*?)`/,
-    /^[\*-] \[ [ x]\]/mi
+    /^[\*-] \[ [ x]\]/mi,
+    /^\|.*\|/m
   ];
 
   return markdownPatterns.some(pattern => pattern.test(text));
 };
+

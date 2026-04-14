@@ -3,11 +3,12 @@
 import { useState } from "react";
 
 type Props = {
+  initialAlias?: string;
   onSubmit: (data: { alias: string; url: string }) => void;
 };
 
-export default function LinkPopover({ onSubmit }: Props) {
-  const [alias, setAlias] = useState("");
+export default function LinkPopover({ initialAlias = "", onSubmit }: Props) {
+  const [alias, setAlias] = useState(initialAlias);
   const [url, setUrl] = useState("");
 
   const submit = () => {
