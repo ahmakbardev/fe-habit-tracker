@@ -9,12 +9,41 @@ export const markdownToHtml = (markdown: string): string => {
   let isTaskList = false;
   let inTable = false;
   let tableHeaderProcessed = false;
+  let inCodeBlock = false;
+  let codeBlockLines: string[] = [];
+  let codeLanguage = '';
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
 
-    // 0. Table Logic
+    // 0. Code Block Logic (Triple Backticks)
+    if (trimmedLine.startsWith('```')) {
+      if (inCodeBlock) {
+        // End of code block
+        const codeContent = codeBlockLines.join('\n');
+        const langAttr = codeLanguage ? ` data-lang="${codeLanguage}"` : '';
+        const langBadge = codeLanguage ? `<div class="code-lang-badge" contenteditable="false">${codeLanguage}</div>` : '';
+        
+        result.push(`<pre${langAttr}>${langBadge}<code>${escapeHtml(codeContent)}</code></pre>`);
+        inCodeBlock = false;
+        codeBlockLines = [];
+        codeLanguage = '';
+      } else {
+        // Start of code block
+        inCodeBlock = true;
+        codeLanguage = trimmedLine.slice(3).trim();
+        // If in list, we stay in list to maintain indentation
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockLines.push(line);
+      continue;
+    }
+
+    // 1. Table Logic
     const isTableLine = trimmedLine.startsWith('|') && trimmedLine.endsWith('|');
     
     if (isTableLine) {
@@ -93,7 +122,6 @@ export const markdownToHtml = (markdown: string): string => {
       }
 
       if (isTaskList) {
-        // [FIX] Bungkus content dalam <span> agar tidak pecah saat flex di li
         result.push(`<li><input type="checkbox" class="task-checkbox select-none"${isChecked ? ' checked="true"' : ''}><span>${content}</span></li>`);
       } else {
         result.push(`<li>${content}</li>`);
@@ -127,7 +155,26 @@ export const markdownToHtml = (markdown: string): string => {
     result.push('</ul>');
   }
 
+  if (inCodeBlock) {
+    const codeContent = codeBlockLines.join('\n');
+    result.push(`<pre><code>${escapeHtml(codeContent)}</code></pre>`);
+  }
+
   return result.join('');
+};
+
+/**
+ * Basic HTML escape to prevent breaking the editor with code content
+ */
+const escapeHtml = (text: string): string => {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
 };
 
 /**
@@ -157,10 +204,10 @@ export const isMarkdown = (text: string): boolean => {
     /\[(.*?)\]\((.*?)\)/,
     /\*\*(.*?)\*\*/,
     /`(.*?)`/,
+    /^```/m,
     /^[\*-] \[ [ x]\]/mi,
     /^\|.*\|/m
   ];
 
   return markdownPatterns.some(pattern => pattern.test(text));
 };
-
