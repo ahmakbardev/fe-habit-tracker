@@ -4,12 +4,12 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import Toolbar from "./Toolbar";
 import ImageResizer from "./ImageResizer";
 import { toggleBlockType, toggleList, toggleOrderedList, insertHTML } from "./html-utils";
-import { Heading1, Link2, List, ListOrdered, Quote, Trash2 } from "lucide-react";
+import { Heading1, Link2, List, ListOrdered, Quote, Trash2, Layout, ChevronDown } from "lucide-react";
 import TableBubbleMenu from "./TableBubbleMenu";
 import { handleTableTab } from "./table-utils";
 import { ensureCheckboxInLi } from "./html-utils";
 import { addColumn, removeColumn } from "./column-utils";
-import { moveCaretToEnd } from "./caret-utils";
+import { moveCaretToEnd, saveCaretManually, restoreCaretManually } from "./caret-utils";
 import { useMediaQuery, cn } from "@/lib/utils";
 import { markdownToHtml, isMarkdown } from "./markdown-utils";
 import TextBubbleMenu from "./TextBubbleMenu";
@@ -646,6 +646,31 @@ export default function RichTextEditor({ value, onChange }: Props) {
   }, [isMobile, isMouseDown]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.ctrlKey && e.key === "Enter") {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed) {
+        const node = sel.anchorNode;
+        const parent = (node?.nodeType === 3 ? node.parentElement : node) as HTMLElement;
+        const section = parent?.closest(".collapsible-section") as HTMLDetailsElement;
+        
+        if (section) {
+          e.preventDefault();
+          const p = document.createElement("p");
+          p.innerHTML = "<br>";
+          section.parentNode?.insertBefore(p, section.nextSibling);
+          
+          // Move caret to new paragraph
+          const range = document.createRange();
+          range.setStart(p, 0);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          
+          if (ref.current) onChange(ref.current.innerHTML);
+          return;
+        }
+      }
+    }
     if (e.key === "Enter") {
       const sel = window.getSelection();
       if (sel && sel.isCollapsed) {
@@ -661,22 +686,85 @@ export default function RichTextEditor({ value, onChange }: Props) {
         }
       }
     }
-    if (e.key === "Backspace") {
+    if (e.key === "Delete") {
       const sel = window.getSelection();
       if (sel && sel.isCollapsed) {
+        const range = sel.getRangeAt(0);
         const node = sel.anchorNode;
         const parent = (node?.nodeType === 3 ? node.parentElement : node) as HTMLElement;
         
-        // Handle Backspace in empty Section Title
+        // 1. Protect More button from forward Delete at the end of Section Title
         const title = parent?.closest(".section-title") as HTMLElement;
-        if (title && title.textContent?.trim() === "") {
+        if (title) {
+          const textLength = title.textContent?.length || 0;
+          if (range.startOffset === textLength) {
+            e.preventDefault(); // Prevent deleting the contenteditable="false" actions div
+            return;
+          }
+        }
+
+        // 2. Prevent "Delete" from pulling the section into the current line from above
+        const block = parent.closest("p, div, h1, h2, h3, blockquote, ul, ol, table, pre");
+        if (block && block.nextElementSibling?.classList.contains("collapsible-section")) {
+          const textLength = block.textContent?.length || 0;
+          if (range.startOffset === textLength) {
+            e.preventDefault();
+            const details = block.nextElementSibling as HTMLDetailsElement;
+            const title = details.querySelector(".section-title") as HTMLElement;
+            if (title) {
+              const newRange = document.createRange();
+              newRange.setStart(title, 0);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            return;
+          }
+        }
+      }
+    }
+    if (e.key === "Backspace") {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed) {
+        const range = sel.getRangeAt(0);
+        const node = sel.anchorNode;
+        const parent = (node?.nodeType === 3 ? node.parentElement : node) as HTMLElement;
+        
+        // 1. Handle Backspace in Section Title
+        const title = parent?.closest(".section-title") as HTMLElement;
+        if (title && range.startOffset === 0) {
           e.preventDefault();
           const details = title.closest("details");
-          if (details) {
-            details.remove();
-            if (ref.current) onChange(ref.current.innerHTML);
+          if (title.textContent?.trim() === "") {
+            details?.remove();
+          } else {
+            if (details?.previousElementSibling) {
+              moveCaretToEnd(details.previousElementSibling as HTMLElement);
+            }
           }
+          if (ref.current) onChange(ref.current.innerHTML);
           return;
+        }
+
+        // 2. Prevent merging paragraph below a section into the section's internal structure
+        if (range.startOffset === 0) {
+          const block = parent.closest("p, div, h1, h2, h3, blockquote, ul, ol, table, pre");
+          if (block && block.previousElementSibling?.classList.contains("collapsible-section")) {
+            const details = block.previousElementSibling as HTMLDetailsElement;
+            e.preventDefault();
+            
+            // Auto-expand if closed
+            if (!details.hasAttribute("open")) {
+              details.setAttribute("open", "");
+            }
+            
+            // Move focus to the end of section content instead of deleting it
+            const content = details.querySelector(".content");
+            if (content) {
+              moveCaretToEnd(content as HTMLElement);
+            }
+            return;
+          }
         }
 
         const col = parent?.closest(".rte-column") as HTMLElement;
@@ -775,43 +863,91 @@ export default function RichTextEditor({ value, onChange }: Props) {
     e.preventDefault();
   };
 
-  const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [smartPasteText, setSmartPasteText] = useState<string | null>(null);
 
-  const applySmartPaste = (type: "hr" | "section") => {
-    if (!pasteMenu) return;
-    const text = pasteMenu.text;
-    let finalHtml = "";
+  const applySmartPaste = (type: "hr" | "section" | "normal") => {
+    if (!smartPasteText) return;
+    
+    // Kembalikan fokus dan posisi kursor sebelum insert
+    ref.current?.focus();
+    restoreCaretManually();
 
-    if (type === "hr") {
-      // Standar: Ubah --- jadi <hr />
-      finalHtml = text.split(/\r?\n/).map(line => {
-        if (line.trim() === "---") return "<hr />";
-        return `<div>${line}</div>`;
-      }).join("");
+    if (type === "normal") {
+      // Paste as plain text tapi tetap jaga line breaks dasar
+      insertHTML(smartPasteText.split(/\r?\n/).map(l => `<div>${l || "<br>"}</div>`).join(""));
+    } else if (type === "hr") {
+      // Gunakan markdown converter biasa (otomatis handle --- jadi <hr />)
+      insertHTML(markdownToHtml(smartPasteText));
     } else {
-      // Section: Cari ---, line setelahnya jadi H1
-      const lines = text.split(/\r?\n/);
+      const lines = smartPasteText.split(/\r?\n/);
       const result: string[] = [];
-      
+      let currentSectionTitle: string | null = null;
+      let currentSectionLines: string[] = [];
+
+      const flushSection = () => {
+        const contentHtml = markdownToHtml(currentSectionLines.join("\n"));
+        
+        if (currentSectionTitle) {
+          const id = `section-${Math.random().toString(36).substr(2, 9)}`;
+          // Bersihkan title dari simbol markdown seperti #
+          const cleanTitle = currentSectionTitle.replace(/^#+\s+/, "");
+          result.push(`
+            <details class="collapsible-section mx-1.5" id="${id}" open>
+              <summary>
+                <div class="section-toggle-area" contenteditable="false">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                <span class="section-title" data-placeholder="Section Title">${cleanTitle}</span>
+                <div class="section-actions" contenteditable="false">
+                  <button class="btn-section-more" title="More options" data-section-id="${id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                  </button>
+                </div>
+              </summary>
+              <div class="content">
+                ${contentHtml || "<p><br /></p>"}
+              </div>
+            </details>
+          `);
+        } else if (currentSectionLines.length > 0) {
+          result.push(contentHtml);
+        }
+        currentSectionTitle = null;
+        currentSectionLines = [];
+      };
+
       for (let i = 0; i < lines.length; i++) {
-        if (lines[i].trim() === "---" && i + 1 < lines.length) {
-          result.push("<hr />");
-          result.push(`<h1 class="text-4xl font-extrabold text-slate-900 mt-8 mb-4">${lines[i+1].trim()}</h1>`);
-          i++; // Skip baris title karena sudah jadi H1
+        const line = lines[i];
+        if (line.trim() === "---") {
+          flushSection();
+          
+          // Cari baris non-kosong pertama setelah --- sebagai judul
+          let j = i + 1;
+          while (j < lines.length && lines[j].trim() === "") {
+            j++;
+          }
+          
+          if (j < lines.length) {
+            currentSectionTitle = lines[j].trim();
+            i = j; // Loncat ke baris judul tersebut agar iterasi berikutnya mulai setelahnya
+          } else {
+            i = lines.length; // Sudah di ujung teks
+          }
         } else {
-          result.push(`<div>${lines[i]}</div>`);
+          currentSectionLines.push(line);
         }
       }
-      finalHtml = result.join("");
+      flushSection();
+      insertHTML(result.join(""));
     }
 
-    insertHTML(finalHtml);
     if (ref.current) onChange(ref.current.innerHTML);
-    setPasteMenu(null);
+    setSmartPasteText(null);
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const text = e.clipboardData.getData("text/plain");
+    const html = e.clipboardData.getData("text/html");
 
     // --- DETECT SECTION LINK ---
     try {
@@ -833,16 +969,8 @@ export default function RichTextEditor({ value, onChange }: Props) {
     // --- SMART PASTE DETECTION (---) ---
     if (text.includes("---")) {
       e.preventDefault();
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        setPasteMenu({
-          x: rect.left,
-          y: rect.top,
-          text: text
-        });
-      }
+      saveCaretManually(); // Simpan posisi kursor sebelum modal muncul
+      setSmartPasteText(text);
       return;
     }
 
@@ -854,6 +982,79 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   return (
     <div className="relative w-full group min-h-[60vh]">
+      {/* SMART PASTE MODAL */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {smartPasteText && (
+            <div key="smart-paste-overlay" className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 pointer-events-auto">
+              <motion.div 
+                key="smart-paste-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSmartPasteText(null)}
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+              />
+              <motion.div
+                key="smart-paste-modal"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+              >
+                <div className="p-6">
+                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4 text-blue-600">
+                    <Layout size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Smart Paste Detected</h3>
+                  <p className="text-sm text-slate-500 mb-6">We found separators (---) in your text. How would you like to format them?</p>
+                  
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => applySmartPaste("section")}
+                      className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-blue-100 hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                    >
+                      <div className="text-left">
+                        <div className="font-bold text-slate-900 group-hover:text-blue-700">Create Collapsible Sections</div>
+                        <div className="text-xs text-slate-500">--- becomes a toggleable section title</div>
+                      </div>
+                      <ChevronDown className="w-5 h-5 text-blue-500" />
+                    </button>
+
+                    <button
+                      onClick={() => applySmartPaste("hr")}
+                      className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-slate-100 hover:border-slate-300 hover:bg-slate-50 transition-all group"
+                    >
+                      <div className="text-left">
+                        <div className="font-bold text-slate-900">Keep as Separators</div>
+                        <div className="text-xs text-slate-500">Only convert --- to horizontal lines</div>
+                      </div>
+                      <div className="w-6 h-[2px] bg-slate-400" />
+                    </button>
+
+                    <button
+                      onClick={() => applySmartPaste("normal")}
+                      className="w-full p-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                    >
+                      Paste as plain text
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-4 flex justify-center border-t border-slate-100">
+                  <button 
+                    onClick={() => setSmartPasteText(null)}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
       {/* DRAG PREVIEW */}
       <AnimatePresence>
         {isDragging && dragInfo && createPortal(
@@ -958,50 +1159,6 @@ export default function RichTextEditor({ value, onChange }: Props) {
         </div>,
         document.body
       )}
-
-      {/* SMART PASTE OPTIONS */}
-      <AnimatePresence>
-        {pasteMenu && createPortal(
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="fixed z-[5000] bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700 p-1.5 flex flex-col gap-1 min-w-[200px]"
-            style={{ left: pasteMenu.x, top: pasteMenu.y - 80 }}
-          >
-            <div className="px-2 py-1 mb-1 border-b border-slate-800">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Paste Options</span>
-            </div>
-            <button
-              onClick={() => applySmartPaste("hr")}
-              className="flex items-center justify-between gap-3 px-2 py-2 hover:bg-slate-800 rounded-lg text-sm transition-colors group"
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium">Keep as Separator</span>
-                <span className="text-[10px] text-slate-500">Convert --- to horizontal line</span>
-              </div>
-              <div className="w-8 h-[1px] bg-slate-600 group-hover:bg-blue-400" />
-            </button>
-            <button
-              onClick={() => applySmartPaste("section")}
-              className="flex items-center justify-between gap-3 px-2 py-2 hover:bg-slate-800 rounded-lg text-sm transition-colors group"
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium text-blue-400">Convert to Section</span>
-                <span className="text-[10px] text-slate-500">Use line after --- as Title (H1)</span>
-              </div>
-              <Heading1 className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
-            </button>
-            <button
-              onClick={() => setPasteMenu(null)}
-              className="mt-1 px-2 py-1.5 text-center text-xs text-slate-500 hover:text-white transition-colors"
-            >
-              Cancel
-            </button>
-          </motion.div>,
-          document.body
-        )}
-      </AnimatePresence>
 
       {showPlaceholder && <EmptyState />}
 
