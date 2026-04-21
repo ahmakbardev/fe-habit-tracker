@@ -647,6 +647,21 @@ export default function RichTextEditor({ value, onChange }: Props) {
   }, [isMobile, isMouseDown]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter") {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed) {
+        const node = sel.anchorNode;
+        const parent = (node?.nodeType === 3 ? node.parentElement : node) as HTMLElement;
+        const pre = parent?.closest("pre");
+        
+        if (pre) {
+          e.preventDefault();
+          document.execCommand("insertText", false, "\n");
+          if (ref.current) onChange(ref.current.innerHTML);
+          return;
+        }
+      }
+    }
     if (e.key === "Backspace") {
       const sel = window.getSelection();
       if (sel && sel.isCollapsed) {
@@ -726,6 +741,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
         if (trimmedText === "##") { triggerToggle("h2"); return; }
         if (trimmedText === "###") { triggerToggle("h3"); return; }
         if (trimmedText === ">") { triggerToggle("blockquote"); return; }
+        if (trimmedText === "```") { triggerToggle(cmdCode); return; }
       }
     }
   };
@@ -935,6 +951,9 @@ export default function RichTextEditor({ value, onChange }: Props) {
             [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
             [&_li]:pl-1 [&_li]:mb-1
             [&_code]:font-mono [&_code]:text-sm [&_code]:bg-slate-100 [&_code]:text-red-500 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:border [&_code]:border-slate-200
+            [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-4 [&_pre]:rounded-xl [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:font-mono [&_pre]:text-sm [&_pre]:leading-relaxed [&_pre]:relative
+            [&_pre_.code-lang-badge]:absolute [&_pre_.code-lang-badge]:top-2 [&_pre_.code-lang-badge]:right-2 [&_pre_.code-lang-badge]:bg-slate-800 [&_pre_.code-lang-badge]:text-slate-400 [&_pre_.code-lang-badge]:text-[10px] [&_pre_.code-lang-badge]:px-1.5 [&_pre_.code-lang-badge]:py-0.5 [&_pre_.code-lang-badge]:rounded [&_pre_.code-lang-badge]:uppercase [&_pre_.code-lang-badge]:font-bold [&_pre_.code-lang-badge]:tracking-wider [&_pre_.code-lang-badge]:select-none
+            [&_pre_code]:bg-transparent [&_pre_code]:text-inherit [&_pre_code]:p-0 [&_pre_code]:border-none [&_pre_code]:rounded-none
             [&_img]:cursor-pointer [&_img]:border-2 [&_img]:border-transparent [&_img:hover]:border-blue-200 [&_img]:transition-colors
             [&_a]:text-blue-600 [&_a]:underline [&_a]:cursor-pointer [&_a:hover]:text-blue-800
             [&_.font-black]:font-black [&_.font-black]:text-slate-900
