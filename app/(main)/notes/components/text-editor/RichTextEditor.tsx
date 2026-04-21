@@ -775,29 +775,75 @@ export default function RichTextEditor({ value, onChange }: Props) {
     e.preventDefault();
   };
 
+  const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  const applySmartPaste = (type: "hr" | "section") => {
+    if (!pasteMenu) return;
+    const text = pasteMenu.text;
+    let finalHtml = "";
+
+    if (type === "hr") {
+      // Standar: Ubah --- jadi <hr />
+      finalHtml = text.split(/\r?\n/).map(line => {
+        if (line.trim() === "---") return "<hr />";
+        return `<div>${line}</div>`;
+      }).join("");
+    } else {
+      // Section: Cari ---, line setelahnya jadi H1
+      const lines = text.split(/\r?\n/);
+      const result: string[] = [];
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim() === "---" && i + 1 < lines.length) {
+          result.push("<hr />");
+          result.push(`<h1 class="text-4xl font-extrabold text-slate-900 mt-8 mb-4">${lines[i+1].trim()}</h1>`);
+          i++; // Skip baris title karena sudah jadi H1
+        } else {
+          result.push(`<div>${lines[i]}</div>`);
+        }
+      }
+      finalHtml = result.join("");
+    }
+
+    insertHTML(finalHtml);
+    if (ref.current) onChange(ref.current.innerHTML);
+    setPasteMenu(null);
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const text = e.clipboardData.getData("text/plain");
 
-    // --- DETECT SECTION LINK FOR TRANSFORMATION ---
+    // --- DETECT SECTION LINK ---
     try {
       const url = new URL(text);
       if (url.origin === window.location.origin && 
           url.pathname === window.location.pathname && 
           url.hash.startsWith("#section-")) {
-        
         e.preventDefault();
         const sectionId = url.hash.substring(1);
         const targetEl = document.getElementById(sectionId);
         const titleEl = targetEl?.querySelector(".section-title");
         const titleText = titleEl?.textContent?.trim() || "Section";
-
-        const btnHtml = `<span class="section-jump-btn" data-target="${sectionId}">#${titleText}</span>&nbsp;`;
-        insertHTML(btnHtml);
+        insertHTML(`<span class="section-jump-btn" data-target="${sectionId}">#${titleText}</span>&nbsp;`);
         if (ref.current) onChange(ref.current.innerHTML);
         return;
       }
-    } catch (err) {
-      // Not a valid URL, continue with normal paste
+    } catch (err) {}
+
+    // --- SMART PASTE DETECTION (---) ---
+    if (text.includes("---")) {
+      e.preventDefault();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        setPasteMenu({
+          x: rect.left,
+          y: rect.top,
+          text: text
+        });
+      }
+      return;
     }
 
     if (isMarkdown(text)) {
@@ -912,6 +958,50 @@ export default function RichTextEditor({ value, onChange }: Props) {
         </div>,
         document.body
       )}
+
+      {/* SMART PASTE OPTIONS */}
+      <AnimatePresence>
+        {pasteMenu && createPortal(
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="fixed z-[5000] bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700 p-1.5 flex flex-col gap-1 min-w-[200px]"
+            style={{ left: pasteMenu.x, top: pasteMenu.y - 80 }}
+          >
+            <div className="px-2 py-1 mb-1 border-b border-slate-800">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Paste Options</span>
+            </div>
+            <button
+              onClick={() => applySmartPaste("hr")}
+              className="flex items-center justify-between gap-3 px-2 py-2 hover:bg-slate-800 rounded-lg text-sm transition-colors group"
+            >
+              <div className="flex flex-col items-start">
+                <span className="font-medium">Keep as Separator</span>
+                <span className="text-[10px] text-slate-500">Convert --- to horizontal line</span>
+              </div>
+              <div className="w-8 h-[1px] bg-slate-600 group-hover:bg-blue-400" />
+            </button>
+            <button
+              onClick={() => applySmartPaste("section")}
+              className="flex items-center justify-between gap-3 px-2 py-2 hover:bg-slate-800 rounded-lg text-sm transition-colors group"
+            >
+              <div className="flex flex-col items-start">
+                <span className="font-medium text-blue-400">Convert to Section</span>
+                <span className="text-[10px] text-slate-500">Use line after --- as Title (H1)</span>
+              </div>
+              <Heading1 className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
+            </button>
+            <button
+              onClick={() => setPasteMenu(null)}
+              className="mt-1 px-2 py-1.5 text-center text-xs text-slate-500 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </motion.div>,
+          document.body
+        )}
+      </AnimatePresence>
 
       {showPlaceholder && <EmptyState />}
 
