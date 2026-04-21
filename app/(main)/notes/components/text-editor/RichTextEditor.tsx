@@ -758,7 +758,25 @@ export default function RichTextEditor({ value, onChange }: Props) {
     }
   };
 
+  const handleCopy = (e: React.ClipboardEvent) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+
+    const range = selection.getRangeAt(0);
+    const container = document.createElement("div");
+    container.appendChild(range.cloneContents());
+
+    // Clean up internal attributes or add styles if needed
+    const html = container.innerHTML;
+    const text = selection.toString();
+
+    e.clipboardData.setData("text/html", html);
+    e.clipboardData.setData("text/plain", text);
+    e.preventDefault();
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
+    const html = e.clipboardData.getData("text/html");
     const text = e.clipboardData.getData("text/plain");
 
     // --- DETECT SECTION LINK FOR TRANSFORMATION ---
@@ -780,11 +798,21 @@ export default function RichTextEditor({ value, onChange }: Props) {
         return;
       }
     } catch (err) {
-      // Not a valid URL, continue with normal paste
+      // Not a valid URL, continue
+    }
+
+    // Prefer HTML paste if available to preserve formatting
+    if (html) {
+      e.preventDefault();
+      insertHTML(html);
+      if (ref.current) onChange(ref.current.innerHTML);
+      return;
     }
 
     if (isMarkdown(text)) {
-      e.preventDefault(); const html = markdownToHtml(text); insertHTML(html);
+      e.preventDefault(); 
+      const htmlFromMd = markdownToHtml(text); 
+      insertHTML(htmlFromMd);
       if (ref.current) onChange(ref.current.innerHTML);
     }
   };
@@ -904,6 +932,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
         spellCheck={spellCheckEnabled}
         suppressContentEditableWarning
         onKeyDown={handleKeyDown}
+        onCopy={handleCopy}
         onPaste={handlePaste}
         onPointerDown={handleImagePointerDown}
         onClick={handleClick}
