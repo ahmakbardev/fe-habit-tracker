@@ -161,7 +161,7 @@ export default function NoteDetailPanel({
       />
 
       {/* BODY */}
-      <RichTextEditor value={body} onChange={(v) => setBody(v)} />
+      <RichTextEditor key={note.id} value={body} onChange={(v) => setBody(v)} />
     </motion.div>
   );
 }

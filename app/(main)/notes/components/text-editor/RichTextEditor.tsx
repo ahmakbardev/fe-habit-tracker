@@ -576,71 +576,70 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   useEffect(() => {
     const handleSelectionChange = () => {
-      // Check if focus is inside the Link Editor Popover - if so, don't close it!
       const activeEl = document.activeElement;
-      if (activeEl?.closest(".link-editor-popover-container")) {
-        return;
-      }
+      if (activeEl?.closest(".link-editor-popover-container")) return;
 
-      if (isMouseDown) return;
+      // Berikan sedikit delay agar window.getSelection() sudah stabil
+      setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || !ref.current?.contains(sel.anchorNode)) {
+          setFloatingMenu(null);
+          setLinkEditor(null);
+          return;
+        }
 
-      const sel = window.getSelection();
-      if (!sel || !ref.current?.contains(sel.anchorNode)) {
-        setFloatingMenu(null);
-        setLinkEditor(null);
-        return;
-      }
+        const range = sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+        if (!range) return;
 
-      // 1. Detect if we are inside or blocking a link (<a>)
-      let linkEl: HTMLAnchorElement | null = null;
-      const range = sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
-      
-      if (range) {
+        // 1. Deteksi Link
+        let linkEl: HTMLAnchorElement | null = null;
         let node: Node | null = sel.anchorNode;
         if (node?.nodeType === 3) node = node.parentElement;
         linkEl = (node as HTMLElement)?.closest("a");
 
-        if (!linkEl && !sel.isCollapsed) {
-          let common = range.commonAncestorContainer;
-          if (common.nodeType === 3) common = common.parentElement!;
-          linkEl = (common as HTMLElement).closest("a");
+        if (linkEl && ref.current.contains(linkEl) && !linkEl.classList.contains("section-jump-btn")) {
+          const rect = linkEl.getBoundingClientRect();
+          setLinkEditor({
+            x: rect.left + rect.width / 2,
+            y: rect.bottom, 
+            height: rect.height,
+            linkEl: linkEl as HTMLAnchorElement
+          });
+          setFloatingMenu(null);
+          return;
+        } else {
+          setLinkEditor(null);
         }
-      }
 
-      // Check if it's a standard link (not jump btn)
-      if (linkEl && ref.current.contains(linkEl) && !linkEl.classList.contains("section-jump-btn")) {
-        const rect = linkEl.getBoundingClientRect();
-        setLinkEditor({
-          x: rect.left + rect.width / 2,
-          y: rect.bottom, 
-          height: rect.height,
-          linkEl: linkEl as HTMLAnchorElement
-        });
-        setFloatingMenu(null);
-        return;
-      } else {
-        setLinkEditor(null);
-      }
+        // 2. Floating Menu untuk teks yang di-block
+        if (sel.isCollapsed || sel.toString().trim() === "") {
+          setFloatingMenu(null);
+          return;
+        }
 
-      // 2. Standard Floating Menu for blocked text
-      if (sel.isCollapsed) {
-        setFloatingMenu(null);
-        return;
-      }
+        const anchorParent = sel.anchorNode?.parentElement;
+        setIsInsideList(!!anchorParent?.closest("li"));
+        
+        const rects = range.getClientRects();
+        if (rects.length === 0) {
+          setFloatingMenu(null);
+          return;
+        }
 
-      const anchorParent = sel.anchorNode?.parentElement;
-      setIsInsideList(!!anchorParent?.closest("li"));
-      const rects = range?.getClientRects();
-      if (!rects || rects.length === 0) return;
-      const firstRect = rects[0]; 
-      const editorRect = ref.current?.getBoundingClientRect();
-      if (editorRect) {
-        let x = firstRect.left - editorRect.left + firstRect.width / 2;
-        const y = firstRect.top - editorRect.top;
-        const buffer = Math.min(isMobile ? 140 : 230, editorRect.width / 2);
-        if (x < buffer) x = buffer; if (x > editorRect.width - buffer) x = editorRect.width - buffer;
-        setFloatingMenu({ x, y });
-      }
+        const firstRect = rects[0]; 
+        const editorRect = ref.current?.getBoundingClientRect();
+        if (editorRect) {
+          let x = firstRect.left - editorRect.left + firstRect.width / 2;
+          // Gunakan top dengan sedikit offset agar tidak menutupi teks
+          const y = firstRect.top - editorRect.top - 10; 
+          
+          const buffer = Math.min(isMobile ? 140 : 230, editorRect.width / 2);
+          if (x < buffer) x = buffer; 
+          if (x > editorRect.width - buffer) x = editorRect.width - buffer;
+          
+          setFloatingMenu({ x, y });
+        }
+      }, 10);
     };
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
@@ -726,28 +725,33 @@ export default function RichTextEditor({ value, onChange }: Props) {
       const anchorNode = sel.anchorNode;
       if (anchorNode?.nodeType === 3 && anchorNode.parentElement) {
         const textBeforeCaret = anchorNode.textContent?.slice(0, sel.anchorOffset) || "";
-        const trimmedText = textBeforeCaret.trim();
-        const triggerToggle = (type: string | (() => void)) => {
-          e.preventDefault(); const range = document.createRange();
-          const startPos = textBeforeCaret.lastIndexOf(trimmedText);
-          range.setStart(anchorNode, startPos); range.setEnd(anchorNode, sel.anchorOffset);
+        
+        const triggerToggle = (trigger: string, action: string | (() => void)) => {
+          e.preventDefault(); 
+          const range = document.createRange();
+          const startPos = textBeforeCaret.lastIndexOf(trigger);
+          
+          range.setStart(anchorNode, startPos); 
+          range.setEnd(anchorNode, sel.anchorOffset);
           range.deleteContents();
-          if (typeof type === "function") type(); else toggleBlockType(type);
+          
+          if (typeof action === "function") {
+            action();
+          } else {
+            toggleBlockType(action);
+          }
           onChange(ref.current?.innerHTML || "");
         };
-        if (trimmedText === "1.") { triggerToggle(toggleOrderedList); return; }
-        if (trimmedText === "-" || trimmedText === "*") { triggerToggle(toggleList); return; }
-        if (trimmedText === "#") { triggerToggle("h1"); return; }
-        if (trimmedText === "##") { triggerToggle("h2"); return; }
-        if (trimmedText === "###") { triggerToggle("h3"); return; }
-        if (trimmedText === ">") { triggerToggle("blockquote"); return; }
-        if (trimmedText === "```") { 
-          e.preventDefault();
-          const range = document.createRange();
-          const startPos = textBeforeCaret.lastIndexOf(trimmedText);
-          range.setStart(anchorNode, startPos); range.setEnd(anchorNode, sel.anchorOffset);
-          range.deleteContents();
-          cmdCode(ref as React.RefObject<HTMLDivElement>, onChange, true);
+
+        const trimmedText = textBeforeCaret.trim();
+        if (trimmedText === "1.") { triggerToggle("1.", () => toggleOrderedList()); return; }
+        if (trimmedText === "-" || trimmedText === "*") { triggerToggle(trimmedText, () => toggleList()); return; }
+        if (trimmedText === "#") { triggerToggle("#", "h1"); return; }
+        if (trimmedText === "##") { triggerToggle("##", "h2"); return; }
+        if (trimmedText === "###") { triggerToggle("###", "h3"); return; }
+        if (trimmedText === ">") { triggerToggle(">", "blockquote"); return; }
+        if (textBeforeCaret.endsWith("```")) { 
+          triggerToggle("```", () => cmdCode(ref as React.RefObject<HTMLDivElement>, onChange, true));
           return;
         }
       }
