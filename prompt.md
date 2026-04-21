@@ -1,12 +1,14 @@
-### Tabel `meetings` (Pertemuan/Sesi Kelas)
-| Kolom | Tipe Data | Deskripsi |
-| :--- | :--- | :--- |
-| id | bigint (PK) | |
-| course_id | bigint (FK) | |
-| title | varchar | Pertemuan Ke-X |
-| date | date | Tanggal pertemuan |
-| is_open | boolean | Status sesi mandiri aktif/tidak |
-| open_until | datetime | Batas waktu sesi berakhir |
-| latitude | decimal(10,8) | Lokasi Dosen saat sesi dibuka |
-| longitude | decimal(11,8) | Lokasi Dosen saat sesi dibuka |
-| radius | integer | Jarak maksimal (meter) untuk absensi mandiri |
+[{
+	"resource": "/d:/projects/mine/self-note/habit-tracker/app/(main)/notes/components/text-editor/RichTextEditor.tsx",
+	"owner": "typescript",
+	"code": "2345",
+	"severity": 8,
+	"message": "Argument of type '(ref: EditorRef, onChange: OnChangeFn) => void' is not assignable to parameter of type 'string | (() => void)'.\n  Type '(ref: EditorRef, onChange: OnChangeFn) => void' is not assignable to type '() => void'.\n    Target signature provides too few arguments. Expected 2 or more, but got 0.",
+	"source": "ts",
+	"startLineNumber": 744,
+	"startColumn": 52,
+	"endLineNumber": 744,
+	"endColumn": 59,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+}]
