@@ -766,7 +766,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
     const container = document.createElement("div");
     container.appendChild(range.cloneContents());
 
-    // Clean up internal attributes or add styles if needed
+    // Memastikan formatting ikut terbawa saat dicopy
     const html = container.innerHTML;
     const text = selection.toString();
 
@@ -776,7 +776,6 @@ export default function RichTextEditor({ value, onChange }: Props) {
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    const html = e.clipboardData.getData("text/html");
     const text = e.clipboardData.getData("text/plain");
 
     // --- DETECT SECTION LINK FOR TRANSFORMATION ---
@@ -798,21 +797,11 @@ export default function RichTextEditor({ value, onChange }: Props) {
         return;
       }
     } catch (err) {
-      // Not a valid URL, continue
-    }
-
-    // Prefer HTML paste if available to preserve formatting
-    if (html) {
-      e.preventDefault();
-      insertHTML(html);
-      if (ref.current) onChange(ref.current.innerHTML);
-      return;
+      // Not a valid URL, continue with normal paste
     }
 
     if (isMarkdown(text)) {
-      e.preventDefault(); 
-      const htmlFromMd = markdownToHtml(text); 
-      insertHTML(htmlFromMd);
+      e.preventDefault(); const html = markdownToHtml(text); insertHTML(html);
       if (ref.current) onChange(ref.current.innerHTML);
     }
   };
