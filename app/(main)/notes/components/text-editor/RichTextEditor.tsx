@@ -741,7 +741,15 @@ export default function RichTextEditor({ value, onChange }: Props) {
         if (trimmedText === "##") { triggerToggle("h2"); return; }
         if (trimmedText === "###") { triggerToggle("h3"); return; }
         if (trimmedText === ">") { triggerToggle("blockquote"); return; }
-        if (trimmedText === "```") { triggerToggle(cmdCode); return; }
+        if (trimmedText === "```") { 
+          e.preventDefault();
+          const range = document.createRange();
+          const startPos = textBeforeCaret.lastIndexOf(trimmedText);
+          range.setStart(anchorNode, startPos); range.setEnd(anchorNode, sel.anchorOffset);
+          range.deleteContents();
+          cmdCode(ref as React.RefObject<HTMLDivElement>, onChange);
+          return;
+        }
       }
     }
   };
