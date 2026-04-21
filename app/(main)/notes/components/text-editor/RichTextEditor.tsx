@@ -747,7 +747,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
           const startPos = textBeforeCaret.lastIndexOf(trimmedText);
           range.setStart(anchorNode, startPos); range.setEnd(anchorNode, sel.anchorOffset);
           range.deleteContents();
-          cmdCode(ref as React.RefObject<HTMLDivElement>, onChange);
+          cmdCode(ref as React.RefObject<HTMLDivElement>, onChange, true);
           return;
         }
       }

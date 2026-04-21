@@ -90,26 +90,48 @@ export const toggleBlockClass = (className: string, groupClasses: string[]) => {
   setTimeout(restoreCaretManually, 0);
 };
 
-export const toggleCode = () => {
+export const toggleCode = (forceBlock: boolean = false) => {
   saveCaretManually();
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
 
   const range = sel.getRangeAt(0);
   const parent = sel.anchorNode?.parentElement;
-  if (parent && parent.tagName === "CODE") return;
+  
+  if (parent && (parent.tagName === "CODE" || parent.tagName === "PRE")) return;
 
   const selectedText = range.toString();
+  const isMultiLine = forceBlock || selectedText.includes("\n") || selectedText.length > 100;
+
   range.deleteContents();
   
-  const codeEl = document.createElement("code");
-  codeEl.textContent = selectedText || "\u00A0"; 
-  
-  range.insertNode(codeEl);
-  range.setStartAfter(codeEl);
-  range.setEndAfter(codeEl);
-  sel.removeAllRanges();
-  sel.addRange(range);
+  if (isMultiLine) {
+    const preEl = document.createElement("pre");
+    const codeEl = document.createElement("code");
+    codeEl.textContent = selectedText || "\n";
+    preEl.appendChild(codeEl);
+    range.insertNode(preEl);
+    
+    // Add an empty paragraph after pre for easier editing
+    const p = document.createElement("p");
+    p.innerHTML = "<br>";
+    preEl.after(p);
+    
+    // Move caret inside the code block
+    const newRange = document.createRange();
+    newRange.setStart(codeEl, 0);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  } else {
+    const codeEl = document.createElement("code");
+    codeEl.textContent = selectedText || "\u00A0"; 
+    range.insertNode(codeEl);
+    range.setStartAfter(codeEl);
+    range.setEndAfter(codeEl);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
 };
 
 export const toggleList = () => document.execCommand("insertUnorderedList");

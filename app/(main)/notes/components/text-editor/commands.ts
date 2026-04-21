@@ -25,8 +25,8 @@ export const cmdUndo = (ref: EditorRef, onChange: OnChangeFn) => { document.exec
 export const cmdRedo = (ref: EditorRef, onChange: OnChangeFn) => { document.execCommand("redo"); onChange(ref.current?.innerHTML || ""); };
 
 // --- CODE ---
-export const cmdCode = (ref: EditorRef, onChange: OnChangeFn) => {
-  toggleCode(); 
+export const cmdCode = (ref: EditorRef, onChange: OnChangeFn, forceBlock: boolean = false) => {
+  toggleCode(forceBlock); 
   onChange(ref.current?.innerHTML || "");
 };
 
