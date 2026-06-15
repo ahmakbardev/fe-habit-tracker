@@ -1,5 +1,6 @@
 import Topbar from "@/app/components/Topbar";
 import FloatingMenu from "@/app/components/FloatingMenu";
+import AuthGuard from "@/app/components/AuthGuard";
 
 export default function MainLayout({
   children,
@@ -7,14 +8,16 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden">
-      <Topbar />
+    <AuthGuard>
+      <div className="flex h-screen w-full flex-col overflow-hidden">
+        <Topbar />
 
-      <div className="flex-1 relative overflow-hidden flex">
-        {children}
+        <div className="flex-1 relative overflow-hidden flex">
+          {children}
+        </div>
+
+        <FloatingMenu />
       </div>
-
-      <FloatingMenu />
-    </div>
+    </AuthGuard>
   );
 }
