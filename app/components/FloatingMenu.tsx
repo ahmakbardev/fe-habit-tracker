@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   NotebookPen,
+  UserRound,
   Menu,
   X,
 } from "lucide-react";
@@ -25,6 +26,7 @@ export default function FloatingMenu() {
     { key: "Tasks", icon: <ClipboardCheck size={25} />, href: "/tasks" },
     { key: "Home", icon: <LayoutDashboard size={26} />, href: "/dashboard" },
     { key: "Notes", icon: <NotebookPen size={25} />, href: "/notes" },
+    { key: "Profile", icon: <UserRound size={25} />, href: "/profile" },
   ];
 
   // Logic to determine active item based on pathname
