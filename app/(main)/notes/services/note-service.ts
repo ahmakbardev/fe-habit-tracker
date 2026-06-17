@@ -8,6 +8,8 @@ export interface ApiNote {
   content: unknown;
   plain_text_preview: string;
   highlight: boolean;
+  is_public: boolean;
+  public_token: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +97,11 @@ export const NoteService = {
 
   deleteNote: async (id: string): Promise<void> => {
     await api.delete(`/notes/${id}`);
+  },
+
+  togglePublic: async (id: string, is_public: boolean): Promise<ApiNote> => {
+    const response = await api.patch(`/notes/${id}`, { is_public });
+    return unwrap(response);
   },
 
   uploadMedia: async (file: File): Promise<{ url: string }> => {
