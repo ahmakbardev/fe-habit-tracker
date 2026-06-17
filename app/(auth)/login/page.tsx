@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { AuthService } from "@/lib/auth-service";
 
 export default function LoginPage() {
@@ -66,7 +67,12 @@ export default function LoginPage() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-slate-300 text-sm font-medium">Password</label>
+          <div className="flex items-center justify-between">
+            <label className="text-slate-300 text-sm font-medium">Password</label>
+            <Link href="/forgot-password" className="text-slate-500 hover:text-blue-400 text-xs transition">
+              Lupa password?
+            </Link>
+          </div>
           <input
             type="password"
             value={password}

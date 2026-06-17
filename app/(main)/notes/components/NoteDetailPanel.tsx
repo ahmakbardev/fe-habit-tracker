@@ -1,7 +1,8 @@
 "use client";
 
-import { X, Trash, Plus, ArrowLeft } from "lucide-react";
+import { X, Trash, Plus, ArrowLeft, Share2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import ShareNoteModal from "./ShareNoteModal";
 import type { NoteItem } from "./NotesClientWrapper";
 import RichTextEditor from "./text-editor/RichTextEditor";
 import { motion } from "framer-motion";
@@ -40,6 +41,7 @@ export default function NoteDetailPanel({
   const [title, setTitle] = useState(note.title || "");
   const [body, setBody] = useState<string>(getInitialBody(note));
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
+  const [showShare, setShowShare] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -138,6 +140,14 @@ export default function NoteDetailPanel({
           {!isMobile && <div className="w-px h-4 bg-slate-200 mx-1"></div>}
 
           <button
+            onClick={() => setShowShare(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-black hover:bg-slate-100 rounded-md transition"
+          >
+            <Share2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Share</span>
+          </button>
+
+          <button
             onClick={() => onDelete(note.id)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-md transition"
           >
@@ -162,6 +172,14 @@ export default function NoteDetailPanel({
 
       {/* BODY */}
       <RichTextEditor key={note.id} value={body} onChange={(v) => setBody(v)} />
+
+      {showShare && (
+        <ShareNoteModal
+          noteId={note.id}
+          noteTitle={note.title}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </motion.div>
   );
 }

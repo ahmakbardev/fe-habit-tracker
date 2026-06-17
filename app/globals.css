@@ -62,6 +62,146 @@
   cursor: pointer !important;
 }
 
+/* ========================================
+   Public note page — mirror editor styles
+   ======================================== */
+.note-content {
+  color: #334155; /* text-slate-700 */
+  line-height: 1.625; /* leading-relaxed */
+  font-size: 1rem;
+}
+
+/* Headings — mirrors [&_h1], [&_h2], [&_h3] */
+.note-content h1 { display: block; font-size: 2.25rem; font-weight: 800; color: #0f172a; margin-top: 1.5rem; margin-bottom: 1rem; line-height: 1.1; }
+.note-content h2 { display: block; font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-top: 1.25rem; margin-bottom: 0.75rem; }
+.note-content h3 { display: block; font-size: 1.25rem; font-weight: 600; color: #1e293b; margin-top: 1rem; margin-bottom: 0.5rem; }
+.note-content hr { margin-top: 1.5rem; margin-bottom: 1.5rem; border-color: #e2e8f0; }
+
+/* Blockquote — mirrors [&_blockquote] */
+.note-content blockquote {
+  border-left: 4px solid #3b82f6;
+  background: #f8fafc;
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #475569;
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+/* Lists — mirrors [&_ul], [&_ol], [&_li] */
+.note-content ul { list-style: disc; padding-left: 1.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+.note-content ol { list-style: decimal; padding-left: 1.25rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+.note-content li { padding-left: 0.25rem; margin-bottom: 0.25rem; }
+
+/* Checklist — mirrors [&_ul.task-list] and [&_ul.task-list_li] */
+.note-content ul.task-list { list-style: none; padding-left: 0; }
+.note-content ul.task-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0;
+}
+
+/* Checkbox — mirrors [&_input[type=checkbox]] */
+.note-content input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.125rem;
+  border-radius: 0.375rem;
+  border: 2px solid #cbd5e1;
+  background-color: #ffffff;
+  cursor: default;
+  pointer-events: none;
+  transition: all 0.15s;
+}
+.note-content input[type="checkbox"]:checked,
+.note-content input[type="checkbox"][checked] {
+  background-color: #0f172a;
+  border-color: #0f172a;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2220%206%209%2017%204%2012%22%2F%3E%3C%2Fsvg%3E");
+  background-size: 14px 14px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Checked li — strikethrough */
+.note-content li:has(input[type="checkbox"]:checked),
+.note-content li:has(input[type="checkbox"][checked]) {
+  color: #94a3b8;
+  text-decoration: line-through;
+  text-decoration-color: #94a3b8;
+}
+
+/* Inline code — mirrors [&_code] */
+.note-content code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.875rem;
+  background: #f1f5f9;
+  color: #ef4444;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  border: 1px solid #e2e8f0;
+}
+
+/* Code block — mirrors [&_pre] */
+.note-content pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  position: relative;
+}
+.note-content pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+}
+
+/* Links */
+.note-content a { color: #2563eb; text-decoration: underline; }
+
+/* Images */
+.note-content img { max-width: 100%; border-radius: 0.5rem; display: block; }
+.note-content .image-wrapper { display: flex; justify-content: center; margin: 0.75rem 0; }
+
+/* Table — mirrors [&_table], [&_th], [&_td] */
+.note-content table { border-collapse: collapse; border-spacing: 0; margin-top: 1rem; margin-bottom: 1rem; width: 100%; font-size: 0.875rem; }
+.note-content th { background: #f8fafc; font-weight: 600; text-align: left; }
+.note-content td, .note-content th { border: 1px solid #cbd5e1; padding: 0.5rem; min-width: 50px; }
+.note-content .overflow-x-auto { overflow-x: auto; }
+
+/* Columns — mirrors rte-columns layout */
+.note-content .rte-columns { margin-top: 2rem; margin-bottom: 2rem; }
+.note-content .rte-columns-container { display: flex; align-items: stretch; }
+.note-content .rte-column { padding: 0.75rem; min-height: 60px; }
+.note-content .rte-column-resizer { width: 1px; background: #e2e8f0; align-self: stretch; margin: 0 0.375rem; flex-shrink: 0; }
+
+/* Hide edit-only UI on public page */
+.note-content .rte-columns-actions { display: none !important; }
+.note-content .btn-section-more { display: none !important; }
+.note-content .section-actions { display: none !important; }
+.note-content [contenteditable="false"].section-toggle-area { cursor: pointer; }
+
+/* Alignment classes — work via direct Tailwind classes on elements */
+.note-content .text-center { text-align: center; }
+.note-content .text-right { text-align: right; }
+.note-content .text-justify { text-align: justify; }
+
+/* Extra bold */
+.note-content .font-black { font-weight: 900; color: #0f172a; }
+
 @layer base {
   html {
     font-size: 16px;
