@@ -1,3 +1,4 @@
+import Sidebar from "@/app/components/Sidebar";
 import Topbar from "@/app/components/Topbar";
 import FloatingMenu from "@/app/components/FloatingMenu";
 import AuthGuard from "@/app/components/AuthGuard";
@@ -9,11 +10,15 @@ export default function MainLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex h-screen w-full flex-col overflow-hidden">
-        <Topbar />
+      <div className="flex h-screen w-full overflow-hidden">
+        <Sidebar />
 
-        <div className="flex-1 relative overflow-hidden flex">
-          {children}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar />
+
+          <div className="flex-1 relative overflow-hidden flex">
+            {children}
+          </div>
         </div>
 
         <FloatingMenu />
