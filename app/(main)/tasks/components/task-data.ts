@@ -22,8 +22,8 @@ export const initialTasksData: TasksDataStructure = {
       startDate: "2026-01-01",
       columns: [...defaultColumns],
       tasks: [
-        { id: "1", title: "Morning Exercise", status: "done", priority: "medium", description: "30 mins cardio", startDate: "2026-03-15 07:00", dueDate: "2026-03-15 08:30" },
-        { id: "2", title: "Read 10 pages", status: "todo", priority: "low", startDate: "2026-03-15 20:00", dueDate: "2026-03-15 21:00" },
+        { id: "1", title: "Morning Exercise", status: "done", priority: "medium", description: "30 mins cardio", startDate: "2026-03-15 07:00", dueDate: "2026-03-15 08:30", createdAt: "2026-03-10T09:00:00.000Z", progress: 100 },
+        { id: "2", title: "Read 10 pages", status: "todo", priority: "low", startDate: "2026-03-15 20:00", dueDate: "2026-03-15 21:00", createdAt: "2026-03-10T09:00:00.000Z", progress: 0 },
       ]
     },
     "Shopping": {
@@ -31,7 +31,7 @@ export const initialTasksData: TasksDataStructure = {
       status: "planning",
       columns: [...defaultColumns],
       tasks: [
-        { id: "3", title: "Buy groceries", status: "todo", priority: "high", startDate: "2026-03-16 10:00", dueDate: "2026-03-16 12:00" },
+        { id: "3", title: "Buy groceries", status: "todo", priority: "high", startDate: "2026-03-16 10:00", dueDate: "2026-03-16 12:00", createdAt: "2026-03-12T14:20:00.000Z", progress: 0 },
       ]
     },
   },
@@ -44,8 +44,8 @@ export const initialTasksData: TasksDataStructure = {
       metadata: { owner: "Alex", priority: "high" },
       columns: [...defaultColumns],
       tasks: [
-        { id: "4", title: "UI Design", status: "in-progress", priority: "high", description: "Design the dashboard landing page", startDate: "2026-03-15 09:00", dueDate: "2026-03-17 17:00" },
-        { id: "5", title: "API Integration", status: "todo", priority: "medium", startDate: "2026-03-16 13:00", dueDate: "2026-03-18 18:00" },
+        { id: "4", title: "UI Design", status: "in-progress", priority: "high", description: "Design the dashboard landing page", startDate: "2026-03-15 09:00", dueDate: "2026-03-17 17:00", createdAt: "2026-03-01T10:00:00.000Z", progress: 45 },
+        { id: "5", title: "API Integration", status: "todo", priority: "medium", startDate: "2026-03-16 13:00", dueDate: "2026-03-18 18:00", createdAt: "2026-03-01T10:00:00.000Z", progress: 0 },
       ]
     },
     "Meetings": {
@@ -64,8 +64,8 @@ export const initialTasksData: TasksDataStructure = {
         { id: "done", title: "Done" },
       ],
       tasks: [
-        { id: "6", title: "Implement Kanban", status: "in-progress", priority: "high" },
-        { id: "7", title: "Add Notifications", status: "todo", priority: "medium" },
+        { id: "6", title: "Implement Kanban", status: "in-progress", priority: "high", createdAt: "2026-02-20T08:00:00.000Z", progress: 70 },
+        { id: "7", title: "Add Notifications", status: "todo", priority: "medium", createdAt: "2026-02-20T08:00:00.000Z", progress: 0 },
       ]
     },
   },

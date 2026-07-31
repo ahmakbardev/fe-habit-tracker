@@ -38,6 +38,7 @@ export default function AddTaskModal({
     e.preventDefault();
     if (!title.trim()) return;
 
+    const now = new Date().toISOString();
     onAdd({
       title,
       description,
@@ -46,6 +47,13 @@ export default function AddTaskModal({
       startDate: startDate ? startDate.replace("T", " ") : undefined,
       dueDate: dueDate ? dueDate.replace("T", " ") : undefined,
       tags: [],
+      createdAt: now,
+      progress: 0,
+      assignees: [],
+      attachments: [],
+      subtasks: [],
+      comments: [],
+      activities: [{ id: `activity-${Date.now()}`, message: "Task created", createdAt: now }],
     });
 
     // Reset

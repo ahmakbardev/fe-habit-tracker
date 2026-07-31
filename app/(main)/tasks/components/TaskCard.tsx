@@ -2,8 +2,21 @@
 
 import { TaskItem } from "./task-types";
 import { Draggable } from "@hello-pangea/dnd";
-import { Calendar, MessageSquare, MoreHorizontal, Paperclip } from "lucide-react";
+import { Calendar, MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
+
+const AVATAR_COLORS = ["bg-blue-500", "bg-purple-500", "bg-pink-500", "bg-emerald-500", "bg-amber-500", "bg-cyan-500", "bg-indigo-500"];
+
+function colorForName(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function initialsForName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+}
 
 type TaskCardProps = {
   task: TaskItem;
@@ -63,12 +76,30 @@ export default function TaskCard({ task, index, onClick }: TaskCardProps) {
                     <span>{task.dueDate}</span>
                  </div>
                )}
+               {typeof task.progress === "number" && task.progress > 0 && (
+                 <span className="text-[10px] text-slate-400 font-medium">{task.progress}%</span>
+               )}
             </div>
-            
-            <div className="flex -space-x-2">
-               <div className="w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-[10px] text-white font-bold">JD</div>
-               <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] text-slate-500 font-bold">+1</div>
-            </div>
+
+            {task.assignees && task.assignees.length > 0 && (
+              <div className="flex -space-x-2">
+                 {task.assignees.slice(0, 2).map((a) => (
+                   a.avatarUrl ? (
+                     // eslint-disable-next-line @next/next/no-img-element
+                     <img key={a.id} src={a.avatarUrl} alt={a.name} className="w-6 h-6 rounded-full border-2 border-white object-cover" />
+                   ) : (
+                     <div key={a.id} className={clsx("w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] text-white font-bold", colorForName(a.name))}>
+                       {initialsForName(a.name)}
+                     </div>
+                   )
+                 ))}
+                 {task.assignees.length > 2 && (
+                   <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] text-slate-500 font-bold">
+                     +{task.assignees.length - 2}
+                   </div>
+                 )}
+              </div>
+            )}
           </div>
         </div>
       )}
