@@ -7,9 +7,9 @@ import { useState, useRef, useEffect } from "react";
 import { Reorder, useDragControls, motion, AnimatePresence } from "framer-motion";
 
 type Props = {
-  folder: string;
   workspace: string;
-  workspaceId: string;
+  folder: string;
+  folderId: string;
   notes: NoteItem[];
   onNoteClick: (note: NoteItem) => void;
   createNote: () => void;
@@ -19,35 +19,35 @@ type Props = {
   isDetailOpen: boolean;
   activeNoteId?: string | null;
   onBack: () => void;
-  onRenameWorkspace: (wsId: string, newName: string) => void;
+  onRenameFolder: (folderId: string, newName: string) => void;
   onReorderNotes: (newNotes: NoteItem[]) => void;
   isMobile?: boolean;
 };
 
-function NoteCard({ 
-  note, 
-  isActive, 
-  isDetailOpen, 
-  onNoteClick, 
-  duplicateNote, 
-  deleteNote, 
+function NoteCard({
+  note,
+  isActive,
+  isDetailOpen,
+  onNoteClick,
+  duplicateNote,
+  deleteNote,
   toggleHighlight,
   stripHtml,
-  folder,
   workspace,
+  folder,
   isMobile,
   isSearching
-}: { 
-  note: NoteItem, 
-  isActive: boolean, 
+}: {
+  note: NoteItem,
+  isActive: boolean,
   isDetailOpen: boolean,
   onNoteClick: (n: NoteItem) => void,
   duplicateNote: (n: NoteItem) => void,
   deleteNote: (id: string) => void,
   toggleHighlight: (n: NoteItem) => void,
   stripHtml: (h: string) => string,
-  folder: string,
   workspace: string,
+  folder: string,
   isMobile: boolean,
   isSearching: boolean
 }) {
@@ -56,7 +56,7 @@ function NoteCard({
 
   const handleCopyLink = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const link = `notes://${encodeURIComponent(folder)}/${encodeURIComponent(workspace)}/${note.id}`;
+    const link = `notes://${encodeURIComponent(workspace)}/${encodeURIComponent(folder)}/${note.id}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -102,7 +102,7 @@ function NoteCard({
           </div>
         )}
 
-        <div 
+        <div
           className={clsx(
             "flex-1 min-w-0 py-5 pr-5",
             isDetailOpen ? "pl-4" : "pl-0"
@@ -110,7 +110,7 @@ function NoteCard({
           onClick={() => onNoteClick(note)}
         >
           <h2 className={clsx(
-            "font-semibold text-slate-900 mb-1 truncate", 
+            "font-semibold text-slate-900 mb-1 truncate",
             isMobile ? "text-base" : (isDetailOpen ? "text-sm" : "text-lg")
           )}>
             {note.title || "Untitled Note"}
@@ -124,7 +124,7 @@ function NoteCard({
 
           <div className="mt-4 flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{note.time}</span>
-            
+
             <div className={clsx(
               "flex items-center gap-1 transition-opacity",
               isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -145,7 +145,7 @@ function NoteCard({
               >
                 {copied ? <Check size={14} className="text-green-600" /> : <Link2 size={14} />}
               </button>
-              
+
               <button
                 onClick={(e) => { e.stopPropagation(); duplicateNote(note); }}
                 className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-black transition-colors"
@@ -168,9 +168,9 @@ function NoteCard({
 }
 
 export default function NotesContentPanel({
-  folder,
   workspace,
-  workspaceId,
+  folder,
+  folderId,
   notes,
   onNoteClick,
   createNote,
@@ -180,23 +180,23 @@ export default function NotesContentPanel({
   isDetailOpen,
   activeNoteId,
   onBack,
-  onRenameWorkspace,
+  onRenameFolder,
   onReorderNotes,
   isMobile = false,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditing, setIsEditing] = useState(false);
-  const [tempName, setTempName] = useState(workspace || "");
+  const [tempName, setTempName] = useState(folder || "");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setTempName(workspace || ""); }, [workspace]);
+  useEffect(() => { setTempName(folder || ""); }, [folder]);
 
   const handleSave = () => {
-    if (tempName.trim() && tempName !== workspace) onRenameWorkspace(workspaceId, tempName);
+    if (tempName.trim() && tempName !== folder) onRenameFolder(folderId, tempName);
     setIsEditing(false);
   };
 
-  const filteredNotes = notes.filter(n => 
+  const filteredNotes = notes.filter(n =>
     n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (n.desc && n.desc.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -204,7 +204,7 @@ export default function NotesContentPanel({
   const stripHtml = (html: string) => html.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
 
   return (
-    <motion.div 
+    <motion.div
       className={clsx(
         "relative h-full w-full overflow-y-auto bg-white border-r transition-colors",
         isDetailOpen ? "px-4 py-6" : "px-6 md:px-10 py-10"
@@ -219,11 +219,11 @@ export default function NotesContentPanel({
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  placeholder="Search notes..." 
+                <input
+                  placeholder="Search notes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-full text-sm outline-none focus:ring-2 focus:ring-slate-200 w-40 md:w-60 transition-all" 
+                  className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-full text-sm outline-none focus:ring-2 focus:ring-slate-200 w-40 md:w-60 transition-all"
                 />
               </div>
               <button onClick={createNote} className="p-2 bg-black text-white rounded-full hover:scale-105 transition-transform">
@@ -234,10 +234,10 @@ export default function NotesContentPanel({
 
           <div className="mb-10">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{folder}</span>
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{workspace}</span>
             </div>
             {isEditing ? (
-              <input 
+              <input
                 autoFocus
                 value={tempName}
                 onChange={(e) => setTempName(e.target.value)}
@@ -247,7 +247,7 @@ export default function NotesContentPanel({
               />
             ) : (
               <h1 onClick={() => setIsEditing(true)} className="text-4xl font-bold text-slate-900 tracking-tight cursor-pointer hover:text-slate-600 transition-colors">
-                {workspace || "Untitled"}
+                {folder || "Untitled"}
               </h1>
             )}
             <p className="text-slate-400 text-sm mt-2 font-medium">{filteredNotes.length} notes found</p>
@@ -261,10 +261,10 @@ export default function NotesContentPanel({
             <p className="text-slate-400 text-sm">No notes found.</p>
           </div>
         ) : (
-          <Reorder.Group 
-            axis="y" 
-            values={notes} 
-            onReorder={onReorderNotes} 
+          <Reorder.Group
+            axis="y"
+            values={notes}
+            onReorder={onReorderNotes}
             className="space-y-4"
           >
             <AnimatePresence initial={false}>
@@ -279,8 +279,8 @@ export default function NotesContentPanel({
                   deleteNote={deleteNote}
                   toggleHighlight={toggleHighlight}
                   stripHtml={stripHtml}
-                  folder={folder}
                   workspace={workspace}
+                  folder={folder}
                   isMobile={isMobile}
                   isSearching={!!searchQuery}
                 />
