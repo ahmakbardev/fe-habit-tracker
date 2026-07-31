@@ -7,10 +7,11 @@ import { LucideIcon } from "lucide-react";
 import clsx from "clsx";
 
 type Props = {
-  onCreate: (workspace: { label: string; icon: LucideIcon }) => void;
+  onCreate: (item: { label: string; icon: LucideIcon }) => void;
+  itemLabel?: string;
 } & ComponentPropsWithoutRef<typeof PopoverContent>;
 
-export default function CreateWorkspacePopover({ onCreate, className, ...props }: Props) {
+export default function CreateWorkspacePopover({ onCreate, itemLabel = "Workspace", className, ...props }: Props) {
   const [title, setTitle] = useState("");
   const [search, setSearch] = useState("");
   const [selectedIcon, setSelectedIcon] = useState<LucideIcon>(
@@ -51,7 +52,7 @@ export default function CreateWorkspacePopover({ onCreate, className, ...props }
     >
       <div className="mb-3">
         <label className="text-xs font-medium text-slate-500">
-          Workspace Title
+          {itemLabel} Title
         </label>
         <input
           autoFocus
@@ -61,7 +62,7 @@ export default function CreateWorkspacePopover({ onCreate, className, ...props }
             if (e.key === "Enter") handleSubmit();
           }}
           className="mt-1 w-full px-3 py-2 rounded-md border text-sm outline-none focus:ring focus:ring-slate-100 focus:border-slate-300"
-          placeholder="Workspace name..."
+          placeholder={`${itemLabel} name...`}
         />
       </div>
 
@@ -99,7 +100,7 @@ export default function CreateWorkspacePopover({ onCreate, className, ...props }
         onClick={handleSubmit}
         className="mt-4 w-full py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-slate-800 transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Create Workspace
+        Create {itemLabel}
       </button>
     </PopoverContent>
   );

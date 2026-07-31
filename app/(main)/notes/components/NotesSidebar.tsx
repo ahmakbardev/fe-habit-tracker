@@ -31,7 +31,7 @@ import CreateWorkspacePopover from "./CreateWorkspacePopover";
 import ItemActionMenu from "./ItemActionMenu";
 
 // [FIX] Gunakan Record<string, LucideIcon>
-const DEFAULT_WORKSPACE_ICONS: Record<string, LucideIcon> = {
+const DEFAULT_FOLDER_ICONS: Record<string, LucideIcon> = {
   Notes: StickyNote,
   Tasks: ListTodo,
   Announcements: Megaphone,
@@ -49,17 +49,17 @@ const mainMenu = [
 
 type NotesSidebarProps = {
   // [FIX] Ganti any dengan LucideIcon
-  folders: { id: string; name: string; icon: LucideIcon }[];
-  activeFolderId: string | null;
-  activeWorkspaceId: string;
-  workspaces: { id: string; name: string }[];
+  workspaces: { id: string; name: string; icon: LucideIcon }[];
+  activeWorkspaceId: string | null;
+  activeFolderId: string;
+  folders: { id: string; name: string }[];
   // [FIX] Ganti any dengan LucideIcon
   customIcons: Record<string, LucideIcon>;
-  onFolderSelect: (id: string) => void;
   onWorkspaceSelect: (id: string) => void;
-  onCreateFolder: (name: string) => void;
+  onFolderSelect: (id: string) => void;
+  onCreateWorkspace: (name: string) => void;
   // [FIX] Ganti any dengan LucideIcon
-  onCreateWorkspace: (name: string, icon: LucideIcon) => void;
+  onCreateFolder: (name: string, icon: LucideIcon) => void;
   // Workspace Actions
   onRenameWorkspace: (id: string, newName: string) => void;
   onDeleteWorkspace: (id: string) => void;
@@ -69,15 +69,15 @@ type NotesSidebarProps = {
 };
 
 export default function NotesSidebar({
-  folders,
-  activeFolderId,
-  activeWorkspaceId,
   workspaces,
+  activeWorkspaceId,
+  activeFolderId,
+  folders,
   customIcons,
-  onFolderSelect,
   onWorkspaceSelect,
-  onCreateFolder,
+  onFolderSelect,
   onCreateWorkspace,
+  onCreateFolder,
   onRenameWorkspace,
   onDeleteWorkspace,
   onRenameFolder = () => {},
@@ -85,35 +85,35 @@ export default function NotesSidebar({
 }: NotesSidebarProps) {
   const [activeMain, setActiveMain] = useState<string>("");
 
-  // State untuk Folder Popover
+  // State untuk Workspace Popover
+  const [workspacePopoverOpen, setWorkspacePopoverOpen] = useState(false);
+  const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+
+  // --- State untuk Folder Popover ---
   const [folderPopoverOpen, setFolderPopoverOpen] = useState(false);
-  const [isAddingFolder, setIsAddingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
 
-  // --- [BARU] State untuk Workspace Popover ---
-  const [wsPopoverOpen, setWsPopoverOpen] = useState(false);
+  const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
+  const displayWorkspaceName = activeWorkspace?.name || "Select Workspace";
 
-  const activeFolder = folders.find(f => f.id === activeFolderId);
-  const displayFolderName = activeFolder?.name || "Select Folder";
-
-  const handleAddFolderSubmit = () => {
-    if (newFolderName.trim()) {
-      onCreateFolder(newFolderName);
-      setNewFolderName("");
-      setIsAddingFolder(false);
-      setFolderPopoverOpen(false);
+  const handleAddWorkspaceSubmit = () => {
+    if (newWorkspaceName.trim()) {
+      onCreateWorkspace(newWorkspaceName);
+      setNewWorkspaceName("");
+      setIsAddingWorkspace(false);
+      setWorkspacePopoverOpen(false);
     }
   };
 
   return (
     <aside className="h-full w-full bg-white border-r border-slate-200 flex flex-col justify-between z-20 flex-shrink-0">
       <div>
-        {/* FOLDER SWITCHER */}
+        {/* WORKSPACE SWITCHER */}
         <Popover
-          open={folderPopoverOpen}
+          open={workspacePopoverOpen}
           onOpenChange={(open) => {
-            setFolderPopoverOpen(open);
-            if (!open) setIsAddingFolder(false);
+            setWorkspacePopoverOpen(open);
+            if (!open) setIsAddingWorkspace(false);
           }}
         >
           <PopoverTrigger asChild>
@@ -121,16 +121,16 @@ export default function NotesSidebar({
               <Folder
                 className={clsx(
                   "w-6 h-6",
-                  activeFolderId ? "text-orange-500" : "text-slate-400"
+                  activeWorkspaceId ? "text-orange-500" : "text-slate-400"
                 )}
               />
               <span
                 className={clsx(
                   "font-medium truncate",
-                  activeFolderId ? "text-slate-800" : "text-slate-400"
+                  activeWorkspaceId ? "text-slate-800" : "text-slate-400"
                 )}
               >
-                {displayFolderName}
+                {displayWorkspaceName}
               </span>
               <ChevronDown className="w-4 h-4 text-slate-500 ml-auto flex-shrink-0" />
             </button>
@@ -142,38 +142,38 @@ export default function NotesSidebar({
             sideOffset={4}
             className="w-[216px] p-2 bg-white shadow-md border rounded-xl"
           >
-            {/* List Existing Folders */}
+            {/* List Existing Workspaces */}
             <div className="max-h-48 overflow-y-auto">
-              {folders.map((folder) => (
+              {workspaces.map((workspace) => (
                 <div
-                  key={folder.id}
+                  key={workspace.id}
                   className={clsx(
                     "group flex items-center w-full rounded-md text-sm transition pr-1",
-                    activeFolderId === folder.id
+                    activeWorkspaceId === workspace.id
                       ? "bg-slate-100 text-slate-900"
                       : "text-slate-600 hover:bg-slate-50"
                   )}
                 >
                   <button
                     onClick={() => {
-                      onFolderSelect(folder.id);
-                      setFolderPopoverOpen(false);
+                      onWorkspaceSelect(workspace.id);
+                      setWorkspacePopoverOpen(false);
                     }}
                     className="flex-1 flex items-center gap-2 px-3 py-2 text-left truncate"
                   >
-                    <folder.icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{folder.name}</span>
+                    <workspace.icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{workspace.name}</span>
                   </button>
 
-                  {/* FOLDER ACTION MENU */}
+                  {/* WORKSPACE ACTION MENU */}
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                     <ItemActionMenu
-                      itemName={folder.name}
-                      itemType="Folder"
+                      itemName={workspace.name}
+                      itemType="Workspace"
                       onRename={(newName) =>
-                        onRenameFolder(folder.id, newName)
+                        onRenameWorkspace(workspace.id, newName)
                       }
-                      onDelete={() => onDeleteFolder(folder.id)}
+                      onDelete={() => onDeleteWorkspace(workspace.id)}
                       triggerClassName="hover:bg-white"
                     />
                   </div>
@@ -181,29 +181,29 @@ export default function NotesSidebar({
               ))}
             </div>
 
-            {/* Section Add Folder */}
+            {/* Section Add Workspace */}
             <div className="mt-2 pt-2 border-t border-slate-200">
-              {isAddingFolder ? (
+              {isAddingWorkspace ? (
                 <div className="px-1 pb-1">
                   <input
                     autoFocus
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
+                    value={newWorkspaceName}
+                    onChange={(e) => setNewWorkspaceName(e.target.value)}
                     placeholder="Name..."
                     className="w-full text-sm border rounded px-2 py-1 mb-2 outline-none focus:border-orange-500"
                     onKeyDown={(e) =>
-                      e.key === "Enter" && handleAddFolderSubmit()
+                      e.key === "Enter" && handleAddWorkspaceSubmit()
                     }
                   />
                   <div className="flex gap-2">
                     <button
-                      onClick={handleAddFolderSubmit}
+                      onClick={handleAddWorkspaceSubmit}
                       className="flex-1 bg-black text-white text-xs py-1 rounded hover:opacity-80 flex justify-center items-center"
                     >
                       <Check className="w-3 h-3" />
                     </button>
                     <button
-                      onClick={() => setIsAddingFolder(false)}
+                      onClick={() => setIsAddingWorkspace(false)}
                       className="flex-1 bg-slate-100 text-slate-600 text-xs py-1 rounded hover:bg-slate-200 flex justify-center items-center"
                     >
                       <X className="w-3 h-3" />
@@ -212,10 +212,10 @@ export default function NotesSidebar({
                 </div>
               ) : (
                 <button
-                  onClick={() => setIsAddingFolder(true)}
+                  onClick={() => setIsAddingWorkspace(true)}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-slate-600 hover:bg-slate-50"
                 >
-                  <Plus className="w-4 h-4" /> Add Folder
+                  <Plus className="w-4 h-4" /> Add Workspace
                 </button>
               )}
             </div>
@@ -241,44 +241,45 @@ export default function NotesSidebar({
           ))}
         </nav>
 
-        {/* WORKSPACE LIST */}
-        {activeFolder && (
+        {/* FOLDER LIST */}
+        {activeWorkspace && (
           <>
             <div className="mt-6 px-5 text-xs font-semibold text-slate-400 tracking-wide flex items-center justify-between">
-              WORKSPACE
+              FOLDER
               {/* --- Popover Controlled State --- */}
-              <Popover open={wsPopoverOpen} onOpenChange={setWsPopoverOpen}>
+              <Popover open={folderPopoverOpen} onOpenChange={setFolderPopoverOpen}>
                 <PopoverTrigger asChild>
                   <button className="p-1 hover:bg-slate-200 rounded-md transition">
                     <Plus className="w-4 h-4 text-slate-600" />
                   </button>
                 </PopoverTrigger>
                 <CreateWorkspacePopover
-                  onCreate={(ws) => {
-                    onCreateWorkspace(ws.label, ws.icon);
+                  itemLabel="Folder"
+                  onCreate={(folder) => {
+                    onCreateFolder(folder.label, folder.icon);
                     // Tutup popover secara manual setelah create
-                    setWsPopoverOpen(false);
+                    setFolderPopoverOpen(false);
                   }}
                 />
               </Popover>
             </div>
 
             <nav className="mt-2 px-3 pb-20 overflow-y-auto max-h-[calc(100vh-300px)]">
-              {workspaces.length === 0 ? (
+              {folders.length === 0 ? (
                 <p className="px-3 text-xs text-slate-400 italic mt-2">
-                  No workspaces yet.
+                  No folders yet.
                 </p>
               ) : (
-                workspaces.map((ws) => {
-                  const isActive = activeWorkspaceId === ws.id;
+                folders.map((folder) => {
+                  const isActive = activeFolderId === folder.id;
                   const Icon =
-                    customIcons[ws.id] ||
-                    DEFAULT_WORKSPACE_ICONS[ws.name] ||
+                    customIcons[folder.id] ||
+                    DEFAULT_FOLDER_ICONS[folder.name] ||
                     Hash;
 
                   return (
                     <div
-                      key={ws.id}
+                      key={folder.id}
                       className={clsx(
                         "group flex items-center w-full rounded-md text-sm transition-all pr-1",
                         isActive
@@ -287,22 +288,22 @@ export default function NotesSidebar({
                       )}
                     >
                       <button
-                        onClick={() => onWorkspaceSelect(ws.id)}
+                        onClick={() => onFolderSelect(folder.id)}
                         className="flex-1 flex items-center gap-3 px-3 py-2 text-left truncate"
                       >
                         <Icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{ws.name}</span>
+                        <span className="truncate">{folder.name}</span>
                       </button>
 
-                      {/* WORKSPACE ACTION MENU */}
+                      {/* FOLDER ACTION MENU */}
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <ItemActionMenu
-                          itemName={ws.name}
-                          itemType="Workspace"
+                          itemName={folder.name}
+                          itemType="Folder"
                           onRename={(newName) =>
-                            onRenameWorkspace(ws.id, newName)
+                            onRenameFolder(folder.id, newName)
                           }
-                          onDelete={() => onDeleteWorkspace(ws.id)}
+                          onDelete={() => onDeleteFolder(folder.id)}
                         />
                       </div>
                     </div>
