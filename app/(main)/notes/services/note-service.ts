@@ -3,7 +3,7 @@ import api from "@/lib/axios";
 
 export interface ApiNote {
   id: string;
-  workspace_id: string;
+  folder_id: string;
   title: string;
   content: unknown;
   plain_text_preview: string;
@@ -14,9 +14,9 @@ export interface ApiNote {
   updated_at: string;
 }
 
-export interface ApiWorkspace {
+export interface ApiFolder {
   id: string;
-  folder_id: string;
+  workspace_id: string;
   name: string;
   icon_name?: string;
   notes: ApiNote[];
@@ -24,11 +24,11 @@ export interface ApiWorkspace {
   updated_at: string;
 }
 
-export interface ApiFolder {
+export interface ApiWorkspace {
   id: string;
   name: string;
   icon_name?: string;
-  workspaces: ApiWorkspace[];
+  folders: ApiFolder[];
   created_at: string;
   updated_at: string;
 }
@@ -42,7 +42,7 @@ const unwrap = <T>(response: { data: unknown }): T => {
 };
 
 export const NoteService = {
-  getAll: async (): Promise<ApiFolder[]> => {
+  getAll: async (): Promise<ApiWorkspace[]> => {
     const response = await api.get(`/notes?t=${Date.now()}`);
     return unwrap(response);
   },
@@ -52,22 +52,8 @@ export const NoteService = {
     return unwrap(response);
   },
 
-  createFolder: async (name: string, icon_name?: string): Promise<ApiFolder> => {
-    const response = await api.post("/notes/folders", { name, icon_name });
-    return unwrap(response);
-  },
-
-  updateFolder: async (id: string, name: string, icon_name?: string): Promise<ApiFolder> => {
-    const response = await api.patch(`/notes/folders/${id}`, { name, icon_name });
-    return unwrap(response);
-  },
-
-  deleteFolder: async (id: string): Promise<void> => {
-    await api.delete(`/notes/folders/${id}`);
-  },
-
-  createWorkspace: async (folder_id: string, name: string, icon_name?: string): Promise<ApiWorkspace> => {
-    const response = await api.post("/notes/workspaces", { folder_id, name, icon_name });
+  createWorkspace: async (name: string, icon_name?: string): Promise<ApiWorkspace> => {
+    const response = await api.post("/notes/workspaces", { name, icon_name });
     return unwrap(response);
   },
 
@@ -80,8 +66,22 @@ export const NoteService = {
     await api.delete(`/notes/workspaces/${id}`);
   },
 
-  createNote: async (workspace_id: string, title: string, content: unknown = {}): Promise<ApiNote> => {
-    const response = await api.post("/notes", { workspace_id, title, content });
+  createFolder: async (workspace_id: string, name: string, icon_name?: string): Promise<ApiFolder> => {
+    const response = await api.post("/notes/folders", { workspace_id, name, icon_name });
+    return unwrap(response);
+  },
+
+  updateFolder: async (id: string, name: string, icon_name?: string): Promise<ApiFolder> => {
+    const response = await api.patch(`/notes/folders/${id}`, { name, icon_name });
+    return unwrap(response);
+  },
+
+  deleteFolder: async (id: string): Promise<void> => {
+    await api.delete(`/notes/folders/${id}`);
+  },
+
+  createNote: async (folder_id: string, title: string, content: unknown = {}): Promise<ApiNote> => {
+    const response = await api.post("/notes", { folder_id, title, content });
     return unwrap(response);
   },
 
@@ -112,14 +112,14 @@ export const NoteService = {
         "Content-Type": "multipart/form-data",
       },
     });
-    
+
     const resData = response.data;
-    
+
     // Mencari URL absolut. Berdasarkan response user:
     // Top-level 'url' adalah https://s3.ahmakbar.space/uploads/...
     // data.url adalah /uploads/...
     let imageUrl = resData.url;
-    
+
     // Jika tidak ada di top-level, cari di data.url
     if (!imageUrl && resData.data?.url) {
       imageUrl = resData.data.url;
