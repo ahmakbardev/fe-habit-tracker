@@ -1,17 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Calendar, Clock, AlertCircle, Check } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 import { TaskItem, TaskStatus, KanbanColumn } from "./task-types";
 import clsx from "clsx";
+import CustomSelect from "./ui/CustomSelect";
+import CustomDateInput from "./ui/CustomDateInput";
 
 type AddTaskModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (task: Omit<TaskItem, "id">) => void;
+  onAdd: (task: Omit<TaskItem, "id">) => Promise<void>;
   columns: KanbanColumn[];
   defaultStatus?: string;
 };
+
+function extractErrorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "response" in err) {
+    const response = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } }).response;
+    const firstFieldError = response?.data?.errors ? Object.values(response.data.errors)[0]?.[0] : undefined;
+    if (firstFieldError) return firstFieldError;
+    if (response?.data?.message) return response.data.message;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return "Something went wrong. Please try again.";
+}
 
 export default function AddTaskModal({
   isOpen,
@@ -27,41 +40,69 @@ export default function AddTaskModal({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<TaskStatus>(defaultStatus || columns[0]?.id || "todo");
+  const [status, setStatus] = useState<TaskStatus>(defaultStatus || columns[0]?.id || "");
   const [priority, setPriority] = useState<TaskItem["priority"]>("medium");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setStatus(defaultStatus || columns[0]?.id || "");
+      setTitleError(null);
+      setSubmitError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, defaultStatus]);
 
   if (!isOpen || !hasMounted) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    setSubmitError(null);
+
+    if (!title.trim()) {
+      setTitleError("Title is required.");
+      return;
+    }
+    if (!status) {
+      setSubmitError("This project has no columns to place the task in.");
+      return;
+    }
 
     const now = new Date().toISOString();
-    onAdd({
-      title,
-      description,
-      status,
-      priority,
-      startDate: startDate ? startDate.replace("T", " ") : undefined,
-      dueDate: dueDate ? dueDate.replace("T", " ") : undefined,
-      tags: [],
-      createdAt: now,
-      progress: 0,
-      assignees: [],
-      attachments: [],
-      subtasks: [],
-      comments: [],
-      activities: [{ id: `activity-${Date.now()}`, message: "Task created", createdAt: now }],
-    });
+    setIsSubmitting(true);
+    try {
+      await onAdd({
+        title: title.trim(),
+        description,
+        status,
+        priority,
+        startDate: startDate ? startDate.replace("T", " ") : undefined,
+        dueDate: dueDate ? dueDate.replace("T", " ") : undefined,
+        tags: [],
+        createdAt: now,
+        progress: 0,
+        assignees: [],
+        attachments: [],
+        subtasks: [],
+        comments: [],
+        activities: [{ id: `activity-${Date.now()}`, message: "Task created", createdAt: now }],
+      });
 
-    // Reset
-    setTitle("");
-    setDescription("");
-    setStartDate("");
-    setDueDate("");
-    onClose();
+      // Reset
+      setTitle("");
+      setDescription("");
+      setStartDate("");
+      setDueDate("");
+      onClose();
+    } catch (err) {
+      setSubmitError(extractErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -82,16 +123,28 @@ export default function AddTaskModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Title</label>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Title <span className="text-red-500">*</span>
+            </label>
             <input
               autoFocus
-              required
               type="text"
               placeholder="What needs to be done?"
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-800 font-medium"
+              className={clsx(
+                "w-full px-4 py-2.5 bg-slate-50 border rounded-xl focus:ring-2 transition-all outline-none text-slate-800 font-medium",
+                titleError ? "border-red-300 focus:ring-red-500/20 focus:border-red-500" : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
+              )}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (titleError) setTitleError(null);
+              }}
             />
+            {titleError && (
+              <p className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+                <AlertCircle size={12} /> {titleError}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -108,15 +161,13 @@ export default function AddTaskModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</label>
-              <select
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-slate-700"
+              <CustomSelect
+                label="Status"
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                {columns.map(col => (
-                  <option key={col.id} value={col.id}>{col.title}</option>
-                ))}
-              </select>
+                options={columns.map((col) => ({ id: col.id, label: col.title }))}
+                onChange={(val) => setStatus(val)}
+                triggerClassName="py-2"
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Priority</label>
@@ -144,42 +195,47 @@ export default function AddTaskModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5" /> Start Date
-              </label>
-              <input
-                type="datetime-local"
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs text-slate-700"
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Start Date</label>
+              <CustomDateInput
+                mode="datetime"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={setStartDate}
+                placeholder="Set start"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5" /> Due Date
-              </label>
-              <input
-                type="datetime-local"
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs text-slate-700"
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Due Date</label>
+              <CustomDateInput
+                mode="datetime"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={setDueDate}
+                placeholder="Set due date"
               />
             </div>
           </div>
+
+          {submitError && (
+            <div className="flex items-start gap-2 px-3.5 py-2.5 bg-red-50 border border-red-100 rounded-xl text-xs font-medium text-red-600">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>{submitError}</span>
+            </div>
+          )}
 
           <div className="pt-4 flex gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-semibold text-sm hover:bg-slate-50 transition"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-semibold text-sm hover:bg-slate-50 transition disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 shadow-lg shadow-blue-200 transition active:scale-95"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 shadow-lg shadow-blue-200 transition active:scale-95 disabled:opacity-60 disabled:active:scale-100"
             >
-              Create Task
+              {isSubmitting ? "Creating..." : "Create Task"}
             </button>
           </div>
         </form>

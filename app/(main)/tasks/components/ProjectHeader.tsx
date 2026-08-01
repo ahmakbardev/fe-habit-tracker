@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { format } from "date-fns";
+import CustomSelect from "./ui/CustomSelect";
+import CustomDateInput from "./ui/CustomDateInput";
 
 type ProjectHeaderProps = {
   projectName: string;
@@ -97,15 +99,13 @@ export default function ProjectHeader({
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Project Status</label>
-                      <select 
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      <CustomSelect
+                        label="Project Status"
                         value={status}
-                        onChange={(e) => setStatus(e.target.value as NonNullable<ProjectData["status"]>)}
-                      >
-                        {Object.entries(statusConfig).map(([id, cfg]) => (
-                          <option key={id} value={id}>{cfg.label}</option>
-                        ))}
-                      </select>
+                        options={Object.entries(statusConfig).map(([id, cfg]) => ({ id, label: cfg.label }))}
+                        onChange={(val) => setStatus(val as NonNullable<ProjectData["status"]>)}
+                        triggerClassName="bg-white font-bold text-slate-700"
+                      />
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Owner</label>
@@ -121,20 +121,22 @@ export default function ProjectHeader({
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Date</label>
-                      <input 
-                        type="date"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      <CustomDateInput
+                        mode="date"
                         value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        onChange={setStartDate}
+                        placeholder="Set start date"
+                        className="[&_button]:bg-white"
                       />
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">End Date</label>
-                      <input 
-                        type="date"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      <CustomDateInput
+                        mode="date"
                         value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
+                        onChange={setEndDate}
+                        placeholder="Set end date"
+                        className="[&_button]:bg-white"
                       />
                    </div>
                 </div>

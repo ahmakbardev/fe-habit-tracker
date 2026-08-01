@@ -1,7 +1,5 @@
 // app/(main)/tasks/components/task-types.ts
 
-import { LucideIcon } from "lucide-react";
-
 export type TaskStatus = string; // Dinamis
 
 export type Assignee = {
@@ -13,10 +11,7 @@ export type Assignee = {
 export type Subtask = {
   id: string;
   title: string;
-  description?: string;
   completed: boolean;
-  assignee?: string;
-  dueDate?: string;
 };
 
 export type TaskAttachment = {
@@ -24,7 +19,7 @@ export type TaskAttachment = {
   name: string;
   extension: string;
   size: string;
-  blobUrl?: string;
+  url?: string;
 };
 
 export type TaskComment = {
@@ -33,6 +28,9 @@ export type TaskComment = {
   avatarUrl?: string | null;
   text: string;
   createdAt: string;
+  imageUrl?: string;
+  imageName?: string;
+  pinned?: boolean;
 };
 
 export type ActivityEntry = {
@@ -79,13 +77,3 @@ export type ProjectData = {
   };
 };
 
-export type ProjectType = string;
-export type FolderType = string;
-
-// Folder -> Project -> { columns, tasks }
-export type TasksDataStructure = Record<string, Record<string, ProjectData>>;
-
-export type FolderItem = {
-  name: string;
-  icon: LucideIcon;
-};
