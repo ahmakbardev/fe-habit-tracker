@@ -23,6 +23,7 @@ type Props = {
   onRenameWorkspace: (workspaceId: string, newName: string) => void;
   onDeleteWorkspace: (workspaceId: string) => void;
   onCreateWorkspace: (name: string) => void;
+  subtitle?: string;
 };
 
 type ViewMode = "grid" | "list";
@@ -33,6 +34,7 @@ export default function WorkspaceDashboard({
   onRenameWorkspace,
   onDeleteWorkspace,
   onCreateWorkspace,
+  subtitle = "Choose a workspace to view your folders.",
 }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -55,7 +57,7 @@ export default function WorkspaceDashboard({
               Select Workspace
             </h1>
             <p className="text-slate-500 text-sm md:text-base">
-              Choose a workspace to view your folders.
+              {subtitle}
             </p>
           </div>
 

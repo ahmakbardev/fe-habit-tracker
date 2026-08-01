@@ -1,525 +1,840 @@
 "use client";
 
-import { TaskItem, TaskStatus, KanbanColumn } from "./task-types";
-import { 
-  X, 
-  Calendar, 
-  Flag, 
-  Tag, 
-  AlignLeft, 
-  CheckCircle2, 
+import { TaskItem, KanbanColumn, TaskAttachment, TaskComment } from "./task-types";
+import {
+  X,
+  Calendar,
+  Flag,
   Clock,
   Trash2,
-  ChevronRight,
-  ArrowRightCircle,
-  MoreHorizontal,
-  Edit3,
-  Eye,
-  Check,
-  Link2,
-  Layers,
-  ChevronDown,
-  CalendarDays,
-  FolderOpen,
-  Layout
+  MoreVertical,
+  Pencil,
+  Share2,
+  TrendingUp,
+  Users,
+  UserPlus,
+  Paperclip,
+  Download,
+  Plus,
+  FileText,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Archive,
+  File as FileIcon,
+  MessageSquare,
+  History,
+  Square,
+  CheckSquare,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import clsx from "clsx";
-import MiniCalendar from "../../dashboard/components/MiniCalendar";
-import { 
+import { format, isValid } from "date-fns";
+import {
   Popover,
   PopoverTrigger,
-  PopoverContent 
+  PopoverContent,
 } from "@/components/ui/popover";
 import React, { useState, useEffect, useRef } from "react";
-import { initialNotesData } from "../../notes/components/workspace-data";
-import { NoteItem } from "../../notes/components/NotesClientWrapper";
+import { ProfileService, ProfileData, resolveAvatarUrl } from "@/lib/profile-service";
+import { NoteService } from "../../notes/services/note-service";
+import CommentRichEditor, { commentContentClasses, isCommentEmpty, sanitizeCommentHtml } from "./CommentRichEditor";
+import CustomSelect from "./ui/CustomSelect";
+import CustomDateInput from "./ui/CustomDateInput";
 
 type TaskDetailSidebarProps = {
   task: TaskItem | null;
   columns: KanbanColumn[];
   onClose: () => void;
-  onUpdateTask: (task: TaskItem) => void;
   onDeleteTask: (id: string) => void;
+  onUpdateTaskFields: (taskId: string, fields: Partial<{
+    title: string; description: string | null; priority: "low" | "medium" | "high";
+    column_id: string; start_date: string | null; due_date: string | null; progress: number;
+  }>) => Promise<void>;
+  onAddSubtask: (taskId: string, title: string) => Promise<void>;
+  onToggleSubtask: (subtaskId: string, completed: boolean) => Promise<void>;
+  onDeleteSubtask: (subtaskId: string) => Promise<void>;
+  onAddComment: (taskId: string, data: { body?: string; image_url?: string; image_name?: string }) => Promise<void>;
+  onTogglePinComment: (commentId: string, pinned: boolean) => Promise<void>;
+  onAddAttachment: (taskId: string, data: { name: string; url: string; extension?: string; size?: number }) => Promise<void>;
+  onDeleteAttachment: (attachmentId: string) => Promise<void>;
+  onAddAssignee: (taskId: string, userId: number) => Promise<void>;
+  onRemoveAssignee: (taskId: string, userId: number) => Promise<void>;
 };
+
+type TabId = "details" | "subtasks" | "comments" | "activities";
 
 const priorityConfig = {
-  low: { color: "text-blue-600", bg: "bg-blue-50", icon: Flag },
-  medium: { color: "text-orange-600", bg: "bg-orange-50", icon: Flag },
-  high: { color: "text-red-600", bg: "bg-red-50", icon: Flag },
+  low: { color: "text-blue-700", bg: "bg-blue-100" },
+  medium: { color: "text-orange-700", bg: "bg-orange-100" },
+  high: { color: "text-red-700", bg: "bg-red-100" },
 };
 
-// --- CUSTOM COMPONENTS ---
+const STATUS_PALETTE = [
+  { bg: "bg-pink-100", text: "text-pink-700" },
+  { bg: "bg-blue-100", text: "text-blue-700" },
+  { bg: "bg-purple-100", text: "text-purple-700" },
+  { bg: "bg-emerald-100", text: "text-emerald-700" },
+  { bg: "bg-amber-100", text: "text-amber-700" },
+  { bg: "bg-cyan-100", text: "text-cyan-700" },
+];
 
-const CustomSelect = ({ 
-  label, 
-  value, 
-  options, 
-  onChange, 
-  renderValue,
-  placeholder = "Select..."
-}: { 
-  label: string, 
-  value: string, 
-  options: { id: string, label: string, color?: string }[], 
-  onChange: (val: string) => void,
-  renderValue?: (val: string) => React.ReactNode,
-  placeholder?: string
-}) => (
-  <Popover>
-    <PopoverTrigger asChild>
-      <button className="flex items-center justify-between w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all text-left">
-        <div className="flex-1 truncate">
-          {value ? (renderValue ? renderValue(value) : <span className="text-xs font-bold text-slate-700">{options.find(o => o.id === value)?.label || value}</span>) : <span className="text-xs font-medium text-slate-400">{placeholder}</span>}
-        </div>
-        <ChevronDown size={14} className="text-slate-400 ml-2" />
-      </button>
-    </PopoverTrigger>
-    <PopoverContent className="w-56 p-1 shadow-2xl border-slate-100" align="end">
-      <p className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">{label}</p>
-      <div className="max-h-60 overflow-y-auto">
-        {options.length === 0 && <p className="px-3 py-4 text-[10px] text-slate-400 italic text-center">No options available</p>}
-        {options.map((opt) => (
-          <button
-            key={opt.id}
-            onClick={() => onChange(opt.id)}
-            className={clsx(
-              "w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-lg transition-all mb-0.5",
-              value === opt.id ? "bg-blue-50 text-blue-600" : "text-slate-600 hover:bg-slate-50"
-            )}
-          >
-            <span className="truncate pr-4">{opt.label}</span>
-            {value === opt.id && <Check size={14} className="shrink-0" />}
-          </button>
-        ))}
-      </div>
-    </PopoverContent>
-  </Popover>
-);
+const AVATAR_COLORS = ["bg-blue-500", "bg-purple-500", "bg-pink-500", "bg-emerald-500", "bg-amber-500", "bg-cyan-500", "bg-indigo-500"];
 
-const CustomDateTimePicker = ({ 
-  value, 
-  onChange, 
-  label 
-}: { 
-  value: string, 
-  onChange: (val: string) => void,
-  label: string
-}) => {
-  const inputRef = useRef<HTMLInputElement>(null);
-  
-  return (
-    <div className="relative group">
-      <button 
-        onClick={() => inputRef.current?.showPicker()}
-        className="flex items-center gap-3 w-full px-3 py-2 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all text-left"
-      >
-        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-50 transition-colors">
-          <CalendarDays size={16} />
-        </div>
-        <div>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{label}</p>
-          <p className="text-xs font-bold text-slate-700">{value || "Set date & time"}</p>
-        </div>
-      </button>
-      <input 
-        ref={inputRef}
-        type="datetime-local" 
-        className="absolute opacity-0 pointer-events-none"
-        value={value ? value.replace(" ", "T") : ""}
-        onChange={(e) => onChange(e.target.value.replace("T", " "))}
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) hash = value.charCodeAt(i) + ((hash << 5) - hash);
+  return Math.abs(hash);
+}
+
+function colorForStatus(id: string) {
+  return STATUS_PALETTE[hashString(id) % STATUS_PALETTE.length];
+}
+
+function colorForName(name: string) {
+  return AVATAR_COLORS[hashString(name) % AVATAR_COLORS.length];
+}
+
+function initialsForName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+}
+
+function formatDateTime(value?: string, pattern = "MMM d, yyyy"): string {
+  if (!value) return "—";
+  const iso = value.includes("T") ? value : value.replace(" ", "T");
+  const date = new Date(iso);
+  if (!isValid(date)) return "—";
+  return format(date, pattern);
+}
+
+function iconForExtension(ext: string) {
+  const e = ext.toLowerCase();
+  if (e === "pdf") return { Icon: FileText, color: "text-red-500", bg: "bg-red-50" };
+  if (["doc", "docx"].includes(e)) return { Icon: FileText, color: "text-blue-500", bg: "bg-blue-50" };
+  if (["xls", "xlsx", "csv"].includes(e)) return { Icon: FileSpreadsheet, color: "text-emerald-500", bg: "bg-emerald-50" };
+  if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(e)) return { Icon: ImageIcon, color: "text-purple-500", bg: "bg-purple-50" };
+  if (["zip", "rar", "7z"].includes(e)) return { Icon: Archive, color: "text-amber-500", bg: "bg-amber-50" };
+  return { Icon: FileIcon, color: "text-slate-500", bg: "bg-slate-50" };
+}
+
+function Avatar({ name, avatarUrl, size = 26 }: { name: string; avatarUrl?: string | null; size?: number }) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        className="rounded-full object-cover border-2 border-white shadow-sm"
+        style={{ width: size, height: size }}
       />
+    );
+  }
+  return (
+    <div
+      className={clsx("rounded-full flex items-center justify-center text-white font-bold border-2 border-white shadow-sm shrink-0", colorForName(name))}
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+    >
+      {initialsForName(name)}
     </div>
   );
-};
+}
 
-// --- HELPERS ---
 
-const getNoteById = (idOrLink: string): NoteItem | null => {
-  if (!idOrLink) return null;
-  for (const folder of Object.values(initialNotesData)) {
-    for (const workspace of Object.values(folder)) {
-      const note = workspace.find(n => n.id === idOrLink);
-      if (note) return note;
-    }
-  }
-  if (idOrLink.startsWith("notes://")) {
-    const parts = idOrLink.replace("notes://", "").split("/");
-    if (parts.length === 3) {
-      const [fName, wName, nId] = parts.map(p => decodeURIComponent(p));
-      const note = initialNotesData[fName]?.[wName]?.find(n => n.id === nId);
-      if (note) return note;
-    }
-  }
-  return null;
-};
-
-export default function TaskDetailSidebar({ 
-  task, 
+export default function TaskDetailSidebar({
+  task,
   columns,
-  onClose, 
-  onUpdateTask, 
-  onDeleteTask 
+  onClose,
+  onDeleteTask,
+  onUpdateTaskFields,
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
+  onAddComment,
+  onTogglePinComment,
+  onAddAttachment,
+  onDeleteAttachment,
+  onAddAssignee,
+  onRemoveAssignee,
 }: TaskDetailSidebarProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState<TaskItem | null>(null);
-  const [showNotePreview, setShowNotePreview] = useState(false);
-  const [linkMode, setLinkMode] = useState<"selector" | "direct">("selector");
-  const [selFolder, setSelFolder] = useState<string>("");
-  const [selWorkspace, setSelWorkspace] = useState<string>("");
+  const [me, setMe] = useState<ProfileData | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>("details");
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [newCommentText, setNewCommentText] = useState("");
+  const [pendingCommentImage, setPendingCommentImage] = useState<{ url: string; name: string; file: File } | null>(null);
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descDraft, setDescDraft] = useState("");
+  const [progressDraft, setProgressDraft] = useState(0);
+  const [shareCopied, setShareCopied] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const commentImageInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (task) {
-      setDraft(task);
-      setShowNotePreview(false);
-    }
-  }, [task, isEditing]);
+    ProfileService.get().then(setMe).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setActiveTab("details");
+    setEditingTitle(false);
+    setEditingDescription(false);
+    setProgressDraft(task?.progress ?? 0);
+  }, [task?.id, task?.progress]);
+
+  // Jump to the top of the content area whenever the tab changes, so
+  // switching tabs never leaves the user mid-scroll in the old section.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [activeTab]);
 
   if (!task) {
     return (
-      <aside className="h-full w-[350px] bg-white border-l border-slate-200 z-20 flex flex-col flex-shrink-0 transition-all duration-300">
+      <aside className="h-[calc(100%-24px)] my-3 mr-3 w-[350px] bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden z-20 flex flex-col flex-shrink-0 transition-all duration-300">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-800">Schedule</h3>
+          <h3 className="font-semibold text-slate-800">Task Details</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-md transition">
             <X className="w-4 h-4 text-slate-500" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          <MiniCalendar />
-          <div className="mt-8">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Upcoming Tasks</h4>
-            <div className="space-y-3">
-              <p className="text-sm text-slate-500 italic">Select a task to see details.</p>
-            </div>
-          </div>
+        <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+          <p className="text-sm text-slate-400 italic">Select a task to see details.</p>
         </div>
       </aside>
     );
   }
 
-  const displayTask = isEditing && draft ? draft : task;
+  const priorityKey = task.priority as keyof typeof priorityConfig;
+  const statusColor = colorForStatus(task.status);
+  const currentColumnTitle = columns.find((c) => c.id === task.status)?.title || task.status;
+  const subtasks = task.subtasks || [];
+  const attachments = task.attachments || [];
+  const comments = task.comments || [];
+  const activities = task.activities || [];
+  const assignees = task.assignees || [];
+  const completedSubtasks = subtasks.filter((s) => s.completed).length;
+  const pinnedComments = comments.filter((c) => c.pinned);
+  const otherComments = comments.filter((c) => !c.pinned);
 
-  const handleUpdate = (updates: Partial<TaskItem>) => {
-    if (isEditing) {
-      setDraft((prev: TaskItem | null) => prev ? { ...prev, ...updates } : null);
-    } else {
-      onUpdateTask({ ...task, ...updates });
+  // --- Title / Description ---
+  const startEditTitle = () => {
+    setTitleDraft(task.title);
+    setEditingTitle(true);
+  };
+  const saveTitle = () => {
+    setEditingTitle(false);
+    if (titleDraft.trim() && titleDraft !== task.title) {
+      onUpdateTaskFields(task.id, { title: titleDraft.trim() }).catch(console.error);
     }
   };
 
-  const handleSave = () => {
-    if (draft) {
-      onUpdateTask(draft);
-      setIsEditing(false);
+  const startEditDescription = () => {
+    setDescDraft(task.description || "");
+    setEditingDescription(true);
+  };
+  const saveDescription = () => {
+    setEditingDescription(false);
+    if (descDraft !== (task.description || "")) {
+      onUpdateTaskFields(task.id, { description: descDraft || null }).catch(console.error);
     }
   };
 
-  const currentColumnIndex = columns.findIndex(col => col.id === displayTask.status);
-  const nextColumn = currentColumnIndex !== -1 && currentColumnIndex < columns.length - 1 
-    ? columns[currentColumnIndex + 1] 
-    : null;
-
-  const handleMoveToColumn = (columnId: string) => {
-    handleUpdate({ status: columnId });
+  // --- Metadata handlers ---
+  const handleStatusChange = (statusId: string) => {
+    onUpdateTaskFields(task.id, { column_id: statusId }).catch(console.error);
   };
 
-  const priorityKey = displayTask.priority as keyof typeof priorityConfig;
-  const PriorityIcon = priorityConfig[priorityKey].icon;
+  const handlePriorityChange = (priority: string) => {
+    onUpdateTaskFields(task.id, { priority: priority as TaskItem["priority"] }).catch(console.error);
+  };
 
-  // Selector Logic
-  const folders = Object.keys(initialNotesData);
-  const workspaces = selFolder ? Object.keys(initialNotesData[selFolder] || {}) : [];
-  const notes = selFolder && selWorkspace ? initialNotesData[selFolder][selWorkspace] : [];
+  const handleDueDateChange = (val: string) => {
+    onUpdateTaskFields(task.id, { due_date: val || null }).catch(console.error);
+  };
 
-  return (
-    <aside className="h-full w-[450px] bg-white border-l border-slate-200 z-30 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 flex-shrink-0 relative">
-      {/* Header */}
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+  const handleStartDateChange = (val: string) => {
+    onUpdateTaskFields(task.id, { start_date: val || null }).catch(console.error);
+  };
+
+  const commitProgress = () => {
+    if (progressDraft !== (task.progress ?? 0)) {
+      onUpdateTaskFields(task.id, { progress: progressDraft }).catch(console.error);
+    }
+  };
+
+  // --- Assignees ---
+  const addMeAsAssignee = () => {
+    if (!me) return;
+    if (assignees.some((a) => Number(a.id) === me.id)) return;
+    onAddAssignee(task.id, me.id).catch(console.error);
+  };
+  const removeAssignee = (id: string) => {
+    onRemoveAssignee(task.id, Number(id)).catch(console.error);
+  };
+
+  // --- Attachments ---
+  const handleFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    for (const file of Array.from(files)) {
+      try {
+        const { url } = await NoteService.uploadMedia(file);
+        if (!url) continue;
+        await onAddAttachment(task.id, {
+          name: file.name,
+          url,
+          extension: (file.name.split(".").pop() || "FILE").toUpperCase(),
+          size: file.size,
+        });
+      } catch (e) {
+        console.error("Failed to upload attachment:", e);
+      }
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    onDeleteAttachment(id).catch(console.error);
+  };
+
+  const downloadAttachment = (attachment: TaskAttachment) => {
+    if (!attachment.url) return;
+    window.open(attachment.url, "_blank", "noopener,noreferrer");
+  };
+
+  const downloadAll = () => {
+    attachments.filter((a) => a.url).forEach((a) => downloadAttachment(a));
+  };
+
+  // --- Subtasks ---
+  const addSubtask = () => {
+    if (!newSubtaskTitle.trim()) return;
+    onAddSubtask(task.id, newSubtaskTitle.trim()).catch(console.error);
+    setNewSubtaskTitle("");
+  };
+
+  const toggleSubtask = (id: string) => {
+    const target = subtasks.find((s) => s.id === id);
+    if (!target) return;
+    onToggleSubtask(id, !target.completed).catch(console.error);
+  };
+
+  const removeSubtask = (id: string) => {
+    onDeleteSubtask(id).catch(console.error);
+  };
+
+  // --- Comments ---
+  const handleCommentImageSelected = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    if (pendingCommentImage) URL.revokeObjectURL(pendingCommentImage.url);
+    setPendingCommentImage({ url: URL.createObjectURL(file), name: file.name, file });
+    if (commentImageInputRef.current) commentImageInputRef.current.value = "";
+  };
+
+  const clearPendingCommentImage = () => {
+    if (pendingCommentImage) URL.revokeObjectURL(pendingCommentImage.url);
+    setPendingCommentImage(null);
+  };
+
+  const postComment = async () => {
+    if (isCommentEmpty(newCommentText) && !pendingCommentImage) return;
+    setIsPostingComment(true);
+    try {
+      let imageUrl: string | undefined;
+      let imageName: string | undefined;
+      if (pendingCommentImage) {
+        const uploaded = await NoteService.uploadMedia(pendingCommentImage.file);
+        imageUrl = uploaded.url || undefined;
+        imageName = pendingCommentImage.name;
+      }
+      await onAddComment(task.id, {
+        body: isCommentEmpty(newCommentText) ? undefined : sanitizeCommentHtml(newCommentText),
+        image_url: imageUrl,
+        image_name: imageName,
+      });
+      setNewCommentText("");
+      clearPendingCommentImage();
+    } catch (e) {
+      console.error("Failed to post comment:", e);
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
+
+  const togglePinComment = (id: string) => {
+    const target = comments.find((c) => c.id === id);
+    if (!target) return;
+    onTogglePinComment(id, !target.pinned).catch(console.error);
+  };
+
+  // --- Share ---
+  const handleShare = async () => {
+    const summary = `${task.title}\nStatus: ${currentColumnTitle}\nDue: ${formatDateTime(task.dueDate)}`;
+    try {
+      await navigator.clipboard.writeText(summary);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1500);
+    } catch {
+      // clipboard unavailable, silently ignore
+    }
+  };
+
+  const TABS: { id: TabId; label: string; count?: number }[] = [
+    { id: "details", label: "Details" },
+    { id: "subtasks", label: "Subtasks", count: subtasks.length },
+    { id: "comments", label: "Comments", count: comments.length },
+    { id: "activities", label: "Activities" },
+  ];
+
+  const renderComment = (c: TaskComment) => (
+    <div key={c.id} className={clsx("group/comment flex items-start gap-3 rounded-xl p-2 -mx-2", c.pinned && "bg-amber-50/70")}>
+      <Avatar name={c.author} avatarUrl={c.avatarUrl} size={28} />
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          {isEditing ? (
-             <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 animate-in fade-in slide-in-from-left-2 duration-300">
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Editing Mode</span>
-                </div>
-                <button onClick={() => setIsEditing(false)} className="text-[10px] font-bold text-slate-400 uppercase hover:text-red-500 transition px-2">Cancel</button>
-             </div>
-          ) : (
-            <div className="flex bg-slate-200/50 p-1 rounded-lg">
-               <button onClick={() => setIsEditing(false)} className={clsx("p-1.5 rounded-md transition-all flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider", !isEditing ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
-                  <Eye className="w-3.5 h-3.5" /> View
-               </button>
-               <button onClick={() => setIsEditing(true)} className={clsx("p-1.5 rounded-md transition-all flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider", isEditing ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
-                  <Edit3 className="w-3.5 h-3.5" /> Edit
-               </button>
-            </div>
+          <span className="text-xs font-bold text-slate-700">{c.author}</span>
+          <span className="text-[10px] text-slate-400">{formatDateTime(c.createdAt, "MMM d, h:mm a")}</span>
+          {c.pinned && (
+            <span className="flex items-center gap-1 text-[9px] font-black text-amber-600 uppercase tracking-wider">
+              <Pin size={9} className="fill-amber-500" /> Pinned
+            </span>
           )}
         </div>
+        {c.text && !isCommentEmpty(c.text) && (
+          <div className={clsx(commentContentClasses, "mt-0.5")} dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(c.text) }} />
+        )}
+        {c.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={c.imageUrl}
+            alt={c.imageName || "attached image"}
+            className="mt-2 max-h-48 rounded-xl border border-slate-100 object-cover"
+          />
+        )}
+      </div>
+      <button
+        onClick={() => togglePinComment(c.id)}
+        title={c.pinned ? "Unpin comment" : "Pin comment"}
+        className={clsx(
+          "shrink-0 p-1.5 rounded-lg transition opacity-0 group-hover/comment:opacity-100",
+          c.pinned ? "opacity-100 text-amber-600 hover:bg-amber-100" : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+        )}
+      >
+        {c.pinned ? <PinOff size={14} /> : <Pin size={14} />}
+      </button>
+    </div>
+  );
+
+  return (
+    <aside className="h-[calc(100%-24px)] my-3 mr-3 w-[480px] bg-white border border-slate-200 rounded-2xl overflow-hidden z-30 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 flex-shrink-0">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <button onClick={onClose} className="p-2 -ml-2 hover:bg-slate-100 rounded-lg transition">
+          <X className="w-5 h-5 text-slate-500" />
+        </button>
         <div className="flex items-center gap-1">
-          {!isEditing && <button onClick={() => onDeleteTask(task.id)} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>}
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-lg transition"><X className="w-4 h-4 text-slate-500" /></button>
+          <button onClick={startEditTitle} title="Edit title" className="p-2 hover:bg-slate-100 rounded-lg transition text-slate-500">
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button onClick={handleShare} title="Copy summary" className="p-2 hover:bg-slate-100 rounded-lg transition text-slate-500 relative">
+            <Share2 className="w-4 h-4" />
+            {shareCopied && (
+              <span className="absolute -bottom-7 right-0 text-[10px] font-bold bg-slate-800 text-white px-2 py-1 rounded-md whitespace-nowrap">Copied!</span>
+            )}
+          </button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button title="More" className="p-2 hover:bg-slate-100 rounded-lg transition text-slate-500">
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-44 p-1" align="end">
+              <button
+                onClick={() => onDeleteTask(task.id)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Task
+              </button>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-10">
-        {/* Title */}
-        <div className={clsx(isEditing && "p-4 bg-slate-50 rounded-2xl border border-slate-200 border-dashed")}>
-          {isEditing ? (
-            <textarea className="w-full text-2xl font-bold text-slate-800 border-none focus:ring-0 resize-none p-0 bg-transparent placeholder:text-slate-300" placeholder="Task title" rows={2} value={displayTask.title} onChange={(e) => handleUpdate({ title: e.target.value })} />
-          ) : (
-            <h2 className="text-2xl font-bold text-slate-800 leading-tight">{displayTask.title || "Untitled Task"}</h2>
-          )}
-        </div>
-
-        {/* Status Progress */}
-        {!isEditing && (
-          <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100/50 shadow-sm animate-in fade-in zoom-in duration-300">
-            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-4">Status Progress</p>
-            <div className="flex items-center gap-3">
-                {nextColumn ? (
-                  <button onClick={() => handleMoveToColumn(nextColumn.id)} className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition active:scale-95">
-                    Move to {nextColumn.title} <ArrowRightCircle className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center gap-2 bg-green-500 text-white py-3 rounded-xl text-sm font-bold">
-                    <CheckCircle2 className="w-4 h-4" /> Task Completed
-                  </div>
-                )}
-                <Popover>
-                  <PopoverTrigger asChild><button className="p-3 bg-white border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition"><MoreHorizontal className="w-5 h-5" /></button></PopoverTrigger>
-                  <PopoverContent className="w-48 p-1" side="bottom" align="end">
-                    <p className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase">Jump to stage:</p>
-                    {columns.map(col => (
-                      <button key={col.id} disabled={col.id === displayTask.status} onClick={() => handleMoveToColumn(col.id)} className={clsx("w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-md transition", col.id === displayTask.status ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "text-slate-600 hover:bg-blue-50 hover:text-blue-600")}><div className={clsx("w-1.5 h-1.5 rounded-full", col.id === displayTask.status ? "bg-slate-300" : "bg-blue-400")} />{col.title}</button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-            </div>
-          </div>
+      {/* Title */}
+      <div className="px-6 pt-5 pb-1">
+        {editingTitle ? (
+          <textarea
+            autoFocus
+            className="w-full text-2xl font-bold text-slate-800 border-none focus:ring-0 resize-none p-0 bg-transparent"
+            rows={2}
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                saveTitle();
+              }
+            }}
+          />
+        ) : (
+          <h2 onClick={startEditTitle} className="text-2xl font-bold text-slate-800 leading-tight cursor-text hover:text-slate-600 transition-colors">
+            {task.title || "Untitled Task"}
+          </h2>
         )}
+      </div>
 
-        {/* Info Stack */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-50 pb-4">
-            <div className="flex items-center gap-3 text-slate-400"><Tag className="w-4 h-4" /><span className="text-[10px] font-bold uppercase tracking-wider">Status</span></div>
-            {isEditing ? (
-              <div className="w-48">
-                <CustomSelect 
-                  label="Move to Status"
-                  value={displayTask.status}
-                  options={columns.map(c => ({ id: c.id, label: c.title }))}
-                  onChange={(val) => handleUpdate({ status: val })}
-                  renderValue={(v) => (
-                    <span className="text-xs font-black text-blue-600 uppercase bg-blue-50 px-2.5 py-1 rounded-lg">
-                      {columns.find(c => c.id === v)?.title}
+      {/* Tabs — sits right below the title so switching never needs a scroll first */}
+      <div className="px-6 border-b border-slate-100 flex items-center gap-6 shrink-0">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={clsx(
+              "flex items-center gap-1.5 py-3 text-sm font-bold border-b-2 transition-colors",
+              activeTab === tab.id ? "text-blue-600 border-blue-600" : "text-slate-400 border-transparent hover:text-slate-600"
+            )}
+          >
+            {tab.label}
+            {tab.count !== undefined && <span className="text-[10px]">{tab.count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content — each tab replaces the whole body below the tab bar */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-5">
+        {activeTab === "details" && (
+          <div>
+            <div className="space-y-0">
+              <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                <div className="flex items-center gap-3 text-slate-400">
+                  <Flag className="w-4 h-4" />
+                  <span className="text-xs font-medium">Priority</span>
+                </div>
+                <CustomSelect
+                  variant="minimal"
+                  align="end"
+                  label="Set Priority"
+                  value={task.priority}
+                  options={[
+                    { id: "low", label: "Low" },
+                    { id: "medium", label: "Medium" },
+                    { id: "high", label: "High" },
+                  ]}
+                  onChange={handlePriorityChange}
+                  renderValue={() => (
+                    <span className={clsx("inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider", priorityConfig[priorityKey].bg, priorityConfig[priorityKey].color)}>
+                      {task.priority}
                     </span>
                   )}
                 />
               </div>
-            ) : (
-              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg">{columns.find(c => c.id === displayTask.status)?.title || displayTask.status}</span>
-            )}
-          </div>
 
-          <div className="flex items-center justify-between border-b border-slate-50 pb-4">
-            <div className="flex items-center gap-3 text-slate-400"><Flag className="w-4 h-4" /><span className="text-[10px] font-bold uppercase tracking-wider">Priority</span></div>
-            {isEditing ? (
-              <div className="w-48">
-                <CustomSelect 
-                  label="Set Priority"
-                  value={displayTask.priority}
-                  options={[
-                    { id: "low", label: "Low Priority" },
-                    { id: "medium", label: "Medium Priority" },
-                    { id: "high", label: "High Priority" }
-                  ]}
-                  onChange={(val) => handleUpdate({ priority: val as TaskItem["priority"] })}
-                  renderValue={(v) => (
-                    <div className={clsx(
-                      "inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider",
-                      priorityConfig[v as keyof typeof priorityConfig].bg,
-                      priorityConfig[v as keyof typeof priorityConfig].color
-                    )}>
-                      <Flag size={10} />
-                      {v}
-                    </div>
+              <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                <div className="flex items-center gap-3 text-slate-400">
+                  <div className="w-4 h-4 flex items-center justify-center">✱</div>
+                  <span className="text-xs font-medium">Status</span>
+                </div>
+                <CustomSelect
+                  variant="minimal"
+                  align="end"
+                  label="Move to Status"
+                  value={task.status}
+                  options={columns.map((c) => ({ id: c.id, label: c.title }))}
+                  onChange={handleStatusChange}
+                  renderValue={() => (
+                    <span className={clsx("inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold", statusColor.bg, statusColor.text)}>
+                      {currentColumnTitle}
+                    </span>
                   )}
                 />
               </div>
-            ) : (
-              <div className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold", priorityConfig[priorityKey].bg, priorityConfig[priorityKey].color)}><span className="capitalize">{displayTask.priority}</span></div>
-            )}
-          </div>
 
-          {/* New Custom Date Pickers Stack */}
-          {isEditing ? (
-            <div className="grid grid-cols-1 gap-3 pt-2">
-               <CustomDateTimePicker 
-                 label="Start Time"
-                 value={displayTask.startDate || ""}
-                 onChange={(val) => handleUpdate({ startDate: val })}
-               />
-               <CustomDateTimePicker 
-                 label="Deadline"
-                 value={displayTask.dueDate || ""}
-                 onChange={(val) => handleUpdate({ dueDate: val })}
-               />
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between border-b border-slate-50 pb-4">
-                <div className="flex items-center gap-3 text-slate-400"><Calendar className="w-4 h-4" /><span className="text-[10px] font-bold uppercase tracking-wider">Start Time</span></div>
-                <span className="text-xs font-bold text-slate-600">{displayTask.startDate || "—"}</span>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-50 pb-4">
-                <div className="flex items-center gap-3 text-slate-400"><Clock className="w-4 h-4" /><span className="text-[10px] font-bold uppercase tracking-wider">Deadline</span></div>
-                <span className="text-xs font-bold text-slate-600">{displayTask.dueDate || "—"}</span>
-              </div>
-            </>
-          )}
-
-          {/* RELATED NOTE Section */}
-          <div className="flex flex-col gap-4 pt-4 border-t border-slate-50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 text-slate-400"><AlignLeft className="w-4 h-4" /><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Related Note</span></div>
-              {isEditing && (
-                <div className="flex bg-slate-100 p-0.5 rounded-lg">
-                   <button onClick={() => setLinkMode("selector")} className={clsx("px-2 py-1 text-[9px] font-black uppercase rounded-md transition-all", linkMode === "selector" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>Select</button>
-                   <button onClick={() => setLinkMode("direct")} className={clsx("px-2 py-1 text-[9px] font-black uppercase rounded-md transition-all", linkMode === "direct" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400")}>Link</button>
+              <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                <div className="flex items-center gap-3 text-slate-400">
+                  <Calendar className="w-4 h-4" />
+                  <span className="text-xs font-medium">Created date</span>
                 </div>
+                <span className="text-xs font-bold text-slate-600">{formatDateTime(task.createdAt, "MMM d, yyyy h:mm a")}</span>
+              </div>
+
+              <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                <div className="flex items-center gap-3 text-slate-400">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-xs font-medium">Due date</span>
+                </div>
+                <CustomDateInput
+                  mode="datetime"
+                  variant="inline"
+                  value={task.dueDate || ""}
+                  onChange={handleDueDateChange}
+                  placeholder="Set due date"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                <div className="flex items-center gap-3 text-slate-400">
+                  <Calendar className="w-4 h-4" />
+                  <span className="text-xs font-medium">Start time</span>
+                </div>
+                <CustomDateInput
+                  mode="datetime"
+                  variant="inline"
+                  value={task.startDate || ""}
+                  onChange={handleStartDateChange}
+                  placeholder="Set start time"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                <div className="flex items-center gap-3 text-slate-400 shrink-0">
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="text-xs font-medium">Progress</span>
+                </div>
+                <div className="flex items-center gap-3 flex-1 justify-end">
+                  <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${progressDraft}%` }} />
+                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="text-xs font-bold text-slate-600 w-9 text-right hover:text-blue-600 transition">{progressDraft}%</button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-48 p-3" align="end">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Progress</p>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={progressDraft}
+                        onChange={(e) => setProgressDraft(Number(e.target.value))}
+                        onMouseUp={commitProgress}
+                        onTouchEnd={commitProgress}
+                        className="w-full accent-blue-600"
+                      />
+                      <p className="text-center text-xs font-bold text-slate-600 mt-1">{progressDraft}%</p>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3 text-slate-400">
+                  <Users className="w-4 h-4" />
+                  <span className="text-xs font-medium">Assignees</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {assignees.slice(0, 2).map((a) => (
+                    <div key={a.id} className="group/av relative">
+                      <Avatar name={a.name} avatarUrl={a.avatarUrl} />
+                      <button
+                        onClick={() => removeAssignee(a.id)}
+                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center opacity-0 group-hover/av:opacity-100 transition"
+                      >
+                        <X size={9} />
+                      </button>
+                    </div>
+                  ))}
+                  {assignees.length > 2 && (
+                    <div className="w-[26px] h-[26px] rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] text-slate-600 font-bold">
+                      +{assignees.length - 2}
+                    </div>
+                  )}
+                  {me && !assignees.some((a) => Number(a.id) === me.id) && (
+                    <button
+                      onClick={addMeAsAssignee}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 transition"
+                    >
+                      <UserPlus size={12} /> Assign to me
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="mt-6">
+              {editingDescription ? (
+                <textarea
+                  autoFocus
+                  className="w-full min-h-[100px] text-sm text-slate-600 bg-slate-50 rounded-2xl p-4 border border-slate-200 focus:ring-2 focus:ring-blue-500/10 outline-none leading-relaxed resize-none"
+                  placeholder="Add a more detailed description..."
+                  value={descDraft}
+                  onChange={(e) => setDescDraft(e.target.value)}
+                  onBlur={saveDescription}
+                />
+              ) : (
+                <p
+                  onClick={startEditDescription}
+                  className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap bg-slate-50 p-4 rounded-2xl cursor-text hover:bg-slate-100/70 transition-colors"
+                >
+                  {task.description || "Add a more detailed description..."}
+                </p>
               )}
             </div>
 
-            {isEditing && (
-              <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100 border-dashed animate-in fade-in duration-300">
-                {linkMode === "selector" ? (
-                  <div className="grid grid-cols-1 gap-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 ml-1 text-slate-400">
-                        <FolderOpen size={10} />
-                        <p className="text-[9px] font-black uppercase tracking-widest">Folder</p>
-                      </div>
-                      <CustomSelect 
-                        label="Choose Folder"
-                        placeholder="Choose Folder..."
-                        value={selFolder}
-                        options={folders.map(f => ({ id: f, label: f }))}
-                        onChange={(val) => { setSelFolder(val); setSelWorkspace(""); }}
-                      />
-                    </div>
-                    {selFolder && (
-                      <div className="space-y-1.5 animate-in slide-in-from-top-1">
-                        <div className="flex items-center gap-2 ml-1 text-slate-400">
-                          <Layout size={10} />
-                          <p className="text-[9px] font-black uppercase tracking-widest">Workspace</p>
-                        </div>
-                        <CustomSelect 
-                          label="Choose Workspace"
-                          placeholder="Choose Workspace..."
-                          value={selWorkspace}
-                          options={workspaces.map(w => ({ id: w, label: w }))}
-                          onChange={(val) => setSelWorkspace(val)}
-                        />
-                      </div>
-                    )}
-                    {selWorkspace && (
-                      <div className="space-y-1.5 animate-in slide-in-from-top-1">
-                        <div className="flex items-center gap-2 ml-1 text-slate-400">
-                          <Layers size={10} />
-                          <p className="text-[9px] font-black uppercase tracking-widest">Note</p>
-                        </div>
-                        <CustomSelect 
-                          label="Select Note"
-                          placeholder="Select a Note..."
-                          value={displayTask.linkedNoteId || ""}
-                          options={notes.map(n => ({ id: n.id, label: n.title }))}
-                          onChange={(val) => handleUpdate({ linkedNoteId: val || undefined })}
-                          renderValue={(v) => (
-                            <span className="text-xs font-black text-blue-600 truncate block">
-                              {notes.find(n => n.id === v)?.title || v}
-                            </span>
-                          )}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase ml-1">Direct Note URL</p>
-                    <div className="relative">
-                      <input className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/10 transition-all shadow-sm" placeholder="notes://Folder/Workspace/NoteID" value={displayTask.linkedNoteId || ""} onChange={(e) => handleUpdate({ linkedNoteId: e.target.value })} />
-                      <Link2 size={14} className="absolute left-3 top-3 text-slate-400" />
-                    </div>
-                    <p className="text-[9px] text-slate-400 px-1 italic">Example: notes://Awsmd/Notes/1</p>
-                  </div>
+            {/* Attachments */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-slate-700">
+                  <Paperclip className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm font-bold">Attachments</span>
+                </div>
+                {attachments.some((a) => a.url) && (
+                  <button onClick={downloadAll} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700">
+                    <Download size={12} /> Download All
+                  </button>
                 )}
               </div>
-            )}
-
-            {!isEditing && displayTask.linkedNoteId && (
-              <div onClick={() => setShowNotePreview(true)} className="group relative bg-slate-50/50 hover:bg-white border border-slate-100 p-5 rounded-2xl transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1.5">
-                       <div className="w-5 h-5 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500"><Layers size={10} /></div>
-                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Linked Resource</span>
+              <div className="flex flex-wrap gap-3">
+                {attachments.map((a) => {
+                  const { Icon, color, bg } = iconForExtension(a.extension);
+                  return (
+                    <div
+                      key={a.id}
+                      onClick={() => downloadAttachment(a)}
+                      className={clsx(
+                        "group/att relative flex items-center gap-2.5 border border-slate-200 rounded-xl px-3 py-2.5 w-[180px]",
+                        a.url ? "cursor-pointer hover:border-blue-300 hover:bg-blue-50/30" : "cursor-default"
+                      )}
+                    >
+                      <div className={clsx("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
+                        <Icon size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-700 truncate">{a.name}</p>
+                        <p className="text-[10px] text-slate-400">{a.extension} • {a.size}</p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeAttachment(a.id);
+                        }}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100 transition"
+                      >
+                        <X size={9} />
+                      </button>
                     </div>
-                    <h4 className="text-sm font-black text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">{getNoteById(displayTask.linkedNoteId)?.title || "Unknown Resource"}</h4>
-                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed">{getNoteById(displayTask.linkedNoteId)?.desc || "Click to view content."}</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-2xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:border-blue-100 transition-all shadow-sm">
-                    <Eye size={18} className="group-hover:scale-110 transition-transform" />
-                  </div>
+                  );
+                })}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center w-[52px] h-[52px] border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 rounded-xl transition text-slate-400 hover:text-blue-500"
+                >
+                  <Plus size={18} />
+                </button>
+                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "subtasks" && (
+          <div className="space-y-2">
+            {subtasks.length > 0 && (
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{completedSubtasks}/{subtasks.length} completed</p>
+            )}
+            {subtasks.map((s) => (
+              <div key={s.id} className="rounded-xl hover:bg-slate-50 transition-colors">
+                <div className="flex items-start gap-2.5 px-2 py-2">
+                  <button onClick={() => toggleSubtask(s.id)} className="mt-0.5 shrink-0 text-slate-400 hover:text-blue-600 transition">
+                    {s.completed ? <CheckSquare className="w-[18px] h-[18px] text-blue-600" /> : <Square className="w-[18px] h-[18px]" />}
+                  </button>
+                  <span className={clsx("flex-1 text-left text-sm font-medium py-0.5", s.completed ? "text-slate-400 line-through" : "text-slate-700")}>
+                    {s.title}
+                  </span>
+                  <button onClick={() => removeSubtask(s.id)} className="text-slate-300 hover:text-red-500 transition shrink-0">
+                    <X size={13} />
+                  </button>
                 </div>
               </div>
+            ))}
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addSubtask()}
+                placeholder="Add a subtask..."
+                className="flex-1 text-sm px-3 py-2 bg-slate-50 border border-transparent focus:border-slate-200 rounded-lg outline-none transition"
+              />
+              <button onClick={addSubtask} disabled={!newSubtaskTitle.trim()} className="p-2 bg-slate-800 text-white rounded-lg disabled:opacity-30 transition">
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "comments" && (
+          <div className="space-y-1">
+            {comments.length === 0 && <p className="text-xs text-slate-400 italic">No comments yet.</p>}
+
+            {pinnedComments.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-slate-100 space-y-1">
+                {pinnedComments.map(renderComment)}
+              </div>
             )}
-          </div>
-        </div>
+            {otherComments.map(renderComment)}
 
-        {/* Description */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-slate-800">
-            <AlignLeft className="w-4 h-4 text-slate-400" /><span className="text-sm font-bold uppercase tracking-wider text-slate-400">Description</span>
+            <div className="flex items-start gap-3 pt-4">
+              <Avatar name={me?.name || "You"} avatarUrl={me ? resolveAvatarUrl(me.avatar_url) : null} size={28} />
+              <div className="flex-1 space-y-2">
+                {pendingCommentImage && (
+                  <div className="relative inline-block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={pendingCommentImage.url} alt={pendingCommentImage.name} className="max-h-28 rounded-lg border border-slate-200" />
+                    <button
+                      onClick={clearPendingCommentImage}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center"
+                    >
+                      <X size={9} />
+                    </button>
+                  </div>
+                )}
+                <CommentRichEditor value={newCommentText} onChange={setNewCommentText} />
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => commentImageInputRef.current?.click()}
+                    title="Attach image"
+                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                  >
+                    <ImageIcon size={16} />
+                  </button>
+                  <input
+                    ref={commentImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleCommentImageSelected(e.target.files)}
+                  />
+                  <button
+                    onClick={postComment}
+                    disabled={(isCommentEmpty(newCommentText) && !pendingCommentImage) || isPostingComment}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold disabled:opacity-30 hover:bg-blue-700 transition"
+                  >
+                    <MessageSquare size={12} /> {isPostingComment ? "Posting..." : "Post"}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          {isEditing ? (
-            <textarea className="w-full min-h-[180px] text-sm text-slate-600 bg-slate-50 rounded-2xl p-5 border border-slate-200 focus:ring-2 focus:ring-blue-500/10 placeholder:text-slate-400 leading-relaxed outline-none transition-all" placeholder="Add a more detailed description..." value={displayTask.description} onChange={(e) => handleUpdate({ description: e.target.value })} />
-          ) : (
-            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-5 rounded-2xl border border-slate-100">{displayTask.description || "No description provided."}</p>
-          )}
-        </div>
-      </div>
+        )}
 
-      {/* Footer */}
-      <div className="p-6 bg-slate-50 border-t border-slate-100">
-        {isEditing ? (
-          <div className="flex flex-col gap-3">
-            <button onClick={handleSave} className="w-full py-4 bg-blue-600 text-white text-sm font-bold rounded-2xl hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-xl shadow-blue-100 active:scale-[0.98]"><Check className="w-5 h-5" /> Save Changes</button>
-            <button onClick={() => setIsEditing(false)} className="w-full py-3 bg-white text-slate-500 text-xs font-bold rounded-2xl border border-slate-200 hover:bg-slate-50 transition">Discard Changes</button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase">
-            <div className="flex items-center gap-2"><Clock className="w-3 h-3" /><span>Updated recently</span></div>
+        {activeTab === "activities" && (
+          <div className="space-y-4">
+            {activities.length === 0 && <p className="text-xs text-slate-400 italic">No activity yet.</p>}
+            {activities.map((a) => (
+              <div key={a.id} className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                  <History size={13} />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-600">{a.message}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{formatDateTime(a.createdAt, "MMM d, yyyy h:mm a")}</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
-
-      {/* Preview Overlay */}
-      {showNotePreview && displayTask.linkedNoteId && (
-        <div className="absolute inset-0 bg-white z-50 animate-in slide-in-from-right duration-300 flex flex-col">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div className="flex items-center gap-2">
-               <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100"><Layers className="w-3.5 h-3.5" /><span className="text-[10px] font-bold uppercase tracking-wider">Note Preview</span></div>
-            </div>
-            <button onClick={() => setShowNotePreview(false)} className="p-2 hover:bg-slate-200 rounded-lg transition"><X className="w-4 h-4 text-slate-500" /></button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-8 space-y-6">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">{getNoteById(displayTask.linkedNoteId)?.title}</h2>
-            <div className="text-sm text-slate-600 leading-relaxed prose prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: getNoteById(displayTask.linkedNoteId)?.desc || "" }} />
-          </div>
-          <div className="p-6 bg-slate-50 border-t border-slate-100">
-             <button onClick={() => setShowNotePreview(false)} className="w-full py-3 bg-white text-slate-600 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition">Back to Task</button>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }

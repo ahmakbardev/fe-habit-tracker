@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import TasksClientWrapper from "./components/TasksClientWrapper";
 
 export const metadata = {
@@ -6,5 +7,9 @@ export const metadata = {
 };
 
 export default function TasksPage() {
-  return <TasksClientWrapper />;
+  return (
+    <Suspense fallback={<div>Loading tasks...</div>}>
+      <TasksClientWrapper />
+    </Suspense>
+  );
 }

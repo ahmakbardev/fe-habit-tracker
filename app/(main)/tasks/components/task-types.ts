@@ -1,8 +1,43 @@
 // app/(main)/tasks/components/task-types.ts
 
-import { LucideIcon } from "lucide-react";
-
 export type TaskStatus = string; // Dinamis
+
+export type Assignee = {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+};
+
+export type Subtask = {
+  id: string;
+  title: string;
+  completed: boolean;
+};
+
+export type TaskAttachment = {
+  id: string;
+  name: string;
+  extension: string;
+  size: string;
+  url?: string;
+};
+
+export type TaskComment = {
+  id: string;
+  author: string;
+  avatarUrl?: string | null;
+  text: string;
+  createdAt: string;
+  imageUrl?: string;
+  imageName?: string;
+  pinned?: boolean;
+};
+
+export type ActivityEntry = {
+  id: string;
+  message: string;
+  createdAt: string;
+};
 
 export type TaskItem = {
   id: string;
@@ -12,8 +47,15 @@ export type TaskItem = {
   priority: "low" | "medium" | "high";
   startDate?: string;
   dueDate?: string;
+  createdAt?: string;
   tags?: string[];
   linkedNoteId?: string;
+  progress?: number;
+  assignees?: Assignee[];
+  attachments?: TaskAttachment[];
+  subtasks?: Subtask[];
+  comments?: TaskComment[];
+  activities?: ActivityEntry[];
 };
 
 export type KanbanColumn = {
@@ -35,13 +77,3 @@ export type ProjectData = {
   };
 };
 
-export type ProjectType = string;
-export type FolderType = string;
-
-// Folder -> Project -> { columns, tasks }
-export type TasksDataStructure = Record<string, Record<string, ProjectData>>;
-
-export type FolderItem = {
-  name: string;
-  icon: LucideIcon;
-};
