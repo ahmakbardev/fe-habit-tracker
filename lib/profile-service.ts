@@ -8,12 +8,35 @@ export interface ProfileData {
   bio: string | null;
   avatar_url: string | null;
   member_since: string;
+  last_edited: string;
+  job_title: string | null;
+  company: string | null;
+  phone_mobile: string | null;
+  phone_work: string | null;
+  mailing_address: string | null;
+  timezone: string | null;
+  birthday: string | null;
+  tags: string[];
   stats: {
     notes: number;
     habits: number;
     tasks: number;
   };
 }
+
+export type ProfileUpdatePayload = Partial<{
+  name: string;
+  username: string;
+  bio: string | null;
+  job_title: string | null;
+  company: string | null;
+  phone_mobile: string | null;
+  phone_work: string | null;
+  mailing_address: string | null;
+  timezone: string | null;
+  birthday: string | null;
+  tags: string[];
+}>;
 
 export function resolveAvatarUrl(avatarUrl: string | null): string | null {
   if (!avatarUrl) return null;
@@ -28,7 +51,7 @@ export const ProfileService = {
     return res.data.data;
   },
 
-  async update(data: { name?: string; username?: string; bio?: string }): Promise<ProfileData> {
+  async update(data: ProfileUpdatePayload): Promise<ProfileData> {
     const res = await api.patch('/profile', data);
     return res.data.data;
   },
