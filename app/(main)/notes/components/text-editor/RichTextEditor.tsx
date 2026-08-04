@@ -4,14 +4,14 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import Toolbar from "./Toolbar";
 import ImageResizer from "./ImageResizer";
 import { toggleBlockType, toggleList, toggleOrderedList, insertHTML } from "./html-utils";
-import { Heading1, Link2, List, ListOrdered, Quote, Trash2, Layout, ChevronDown } from "lucide-react";
+import { Heading1, Link2, List, ListOrdered, Quote, Trash2, Layout, ChevronDown, FileText } from "lucide-react";
 import TableBubbleMenu from "./TableBubbleMenu";
 import { handleTableTab } from "./table-utils";
 import { ensureCheckboxInLi } from "./html-utils";
 import { addColumn, removeColumn } from "./column-utils";
 import { moveCaretToEnd, saveCaretManually, restoreCaretManually } from "./caret-utils";
 import { useMediaQuery, cn } from "@/lib/utils";
-import { markdownToHtml, isMarkdown } from "./markdown-utils";
+import { markdownToHtml, isMarkdown, escapeHtml } from "./markdown-utils";
 import TextBubbleMenu from "./TextBubbleMenu";
 import SlashPopover from "./popovers/SlashPopover";
 import { 
@@ -864,6 +864,25 @@ export default function RichTextEditor({ value, onChange }: Props) {
   };
 
   const [smartPasteText, setSmartPasteText] = useState<string | null>(null);
+  const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
+
+  const applyMarkdownPaste = (type: "convert" | "plain") => {
+    if (!markdownPasteText) return;
+
+    ref.current?.focus();
+    restoreCaretManually();
+
+    if (type === "convert") {
+      insertHTML(markdownToHtml(markdownPasteText));
+    } else {
+      insertHTML(
+        markdownPasteText.split(/\r?\n/).map((l) => `<div>${l ? escapeHtml(l) : "<br>"}</div>`).join("")
+      );
+    }
+
+    if (ref.current) onChange(ref.current.innerHTML);
+    setMarkdownPasteText(null);
+  };
 
   const applySmartPaste = (type: "hr" | "section" | "normal") => {
     if (!smartPasteText) return;
@@ -874,7 +893,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
     if (type === "normal") {
       // Paste as plain text tapi tetap jaga line breaks dasar
-      insertHTML(smartPasteText.split(/\r?\n/).map(l => `<div>${l || "<br>"}</div>`).join(""));
+      insertHTML(smartPasteText.split(/\r?\n/).map(l => `<div>${l ? escapeHtml(l) : "<br>"}</div>`).join(""));
     } else if (type === "hr") {
       // Gunakan markdown converter biasa (otomatis handle --- jadi <hr />)
       insertHTML(markdownToHtml(smartPasteText));
@@ -897,7 +916,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
                 <div class="section-toggle-area" contenteditable="false">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
-                <span class="section-title" data-placeholder="Section Title">${cleanTitle}</span>
+                <span class="section-title" data-placeholder="Section Title">${escapeHtml(cleanTitle)}</span>
                 <div class="section-actions" contenteditable="false">
                   <button class="btn-section-more" title="More options" data-section-id="${id}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
@@ -947,7 +966,6 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const text = e.clipboardData.getData("text/plain");
-    const html = e.clipboardData.getData("text/html");
 
     // --- DETECT SECTION LINK ---
     try {
@@ -974,9 +992,12 @@ export default function RichTextEditor({ value, onChange }: Props) {
       return;
     }
 
+    // --- MARKDOWN PASTE DETECTION ---
     if (isMarkdown(text)) {
-      e.preventDefault(); const html = markdownToHtml(text); insertHTML(html);
-      if (ref.current) onChange(ref.current.innerHTML);
+      e.preventDefault();
+      saveCaretManually();
+      setMarkdownPasteText(text);
+      return;
     }
   };
 
@@ -1043,6 +1064,69 @@ export default function RichTextEditor({ value, onChange }: Props) {
                 <div className="bg-slate-50 p-4 flex justify-center border-t border-slate-100">
                   <button 
                     onClick={() => setSmartPasteText(null)}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* MARKDOWN PASTE MODAL */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {markdownPasteText && (
+            <div key="markdown-paste-overlay" className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 pointer-events-auto">
+              <motion.div
+                key="markdown-paste-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setMarkdownPasteText(null)}
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              />
+              <motion.div
+                key="markdown-paste-modal"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+              >
+                <div className="p-6">
+                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4 text-blue-600">
+                    <FileText size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Markdown Detected</h3>
+                  <p className="text-sm text-slate-500 mb-6">
+                    The text you pasted looks like Markdown. Convert it to formatted text?
+                  </p>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => applyMarkdownPaste("convert")}
+                      className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-blue-100 hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                    >
+                      <div className="text-left">
+                        <div className="font-bold text-slate-900 group-hover:text-blue-700">Convert to Formatted Text</div>
+                        <div className="text-xs text-slate-500">Headings, lists, tables, bold/italic, etc.</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => applyMarkdownPaste("plain")}
+                      className="w-full p-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                    >
+                      Paste as plain text
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-4 flex justify-center border-t border-slate-100">
+                  <button
+                    onClick={() => setMarkdownPasteText(null)}
                     className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest"
                   >
                     Cancel
