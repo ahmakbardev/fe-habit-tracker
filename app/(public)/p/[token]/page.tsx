@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import TableOfContents from "./components/TableOfContents";
+import { processContent } from "./toc-utils";
 
 interface PublicNote {
   id: string;
@@ -67,7 +69,9 @@ export default async function PublicNotePage({
     );
   }
 
-  const html = extractHtml(note.content, note.plain_text_preview);
+  const rawHtml = extractHtml(note.content, note.plain_text_preview);
+  const { html, headings } = processContent(rawHtml);
+  const showToc = headings.length > 1;
   const updatedAt = new Date(note.updated_at).toLocaleDateString("id-ID", {
     year: "numeric",
     month: "long",
@@ -83,20 +87,30 @@ export default async function PublicNotePage({
       </header>
 
       {/* Note content */}
-      <main className="max-w-[720px] mx-auto px-8 py-12">
-        <h1 className="text-4xl font-extrabold text-slate-900 leading-tight mb-2">
-          {note.title || "Untitled"}
-        </h1>
-        <p className="text-xs text-slate-400 mb-10">Updated {updatedAt}</p>
+      <main className={`mx-auto px-6 sm:px-10 py-12 ${showToc ? "max-w-[1240px]" : "max-w-[860px]"}`}>
+        <div className={showToc ? "lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-14" : ""}>
+          {showToc && (
+            <aside className="hidden lg:block">
+              <TableOfContents headings={headings} />
+            </aside>
+          )}
 
-        {html ? (
-          <div
-            className="note-content"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        ) : (
-          <p className="text-slate-400 italic">This note is empty.</p>
-        )}
+          <article className="min-w-0 max-w-[860px]">
+            <h1 className="text-4xl font-extrabold text-slate-900 leading-tight mb-2">
+              {note.title || "Untitled"}
+            </h1>
+            <p className="text-xs text-slate-400 mb-10">Updated {updatedAt}</p>
+
+            {html ? (
+              <div
+                className="note-content"
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            ) : (
+              <p className="text-slate-400 italic">This note is empty.</p>
+            )}
+          </article>
+        </div>
       </main>
 
       {/* Footer */}
