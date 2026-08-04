@@ -24,7 +24,7 @@ export const markdownToHtml = (markdown: string): string => {
         const codeContent = codeBlockLines.join('\n');
         const langAttr = codeLanguage ? ` data-lang="${codeLanguage}"` : '';
         const langBadge = codeLanguage ? `<div class="code-lang-badge" contenteditable="false">${codeLanguage}</div>` : '';
-        
+
         result.push(`<pre${langAttr}>${langBadge}<code>${escapeHtml(codeContent)}</code></pre>`);
         inCodeBlock = false;
         codeBlockLines = [];
@@ -45,10 +45,10 @@ export const markdownToHtml = (markdown: string): string => {
 
     // 1. Table Logic
     const isTableLine = trimmedLine.startsWith('|') && trimmedLine.endsWith('|');
-    
+
     if (isTableLine) {
       if (inList) { result.push('</ul>'); inList = false; }
-      
+
       // Skip separator line (| :--- |)
       if (trimmedLine.match(/^\|?[:\-\s|]+\|?$/)) {
         continue;
@@ -166,7 +166,7 @@ export const markdownToHtml = (markdown: string): string => {
 /**
  * Basic HTML escape to prevent breaking the editor with code content
  */
-const escapeHtml = (text: string): string => {
+export const escapeHtml = (text: string): string => {
   const map: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
@@ -177,17 +177,37 @@ const escapeHtml = (text: string): string => {
   return text.replace(/[&<>"']/g, (m) => map[m]);
 };
 
+// Private-use-area sentinels (written as JS escapes, not literal bytes) so
+// the placeholder can never collide with real pasted text the way a plain
+// space+digit marker could.
+const CODE_MARK_OPEN = '@@MDCODE';
+const CODE_MARK_CLOSE = '@@';
+const CODE_MARK_RE = new RegExp(CODE_MARK_OPEN + '(\\d+)' + CODE_MARK_CLOSE, 'g');
+
 /**
- * Parse bold, italic, code, and links
+ * Parse bold, italic, code, and links.
+ *
+ * Code spans are extracted and protected *before* bold/italic parsing runs,
+ * so identifiers like `cml_ads_vis_finance` never get their underscores
+ * eaten as emphasis markers. Underscore emphasis also requires a word
+ * boundary (matching CommonMark's intraword-underscore rule), so plain-text
+ * identifiers with underscores are left untouched even outside backticks.
  */
 const parseInlineMarkdown = (text: string): string => {
-  return text
+  const codeSpans: string[] = [];
+  let working = text.replace(/`([^`]+?)`/g, (_match, code: string) => {
+    codeSpans.push(`<code>${escapeHtml(code)}</code>`);
+    return CODE_MARK_OPEN + (codeSpans.length - 1) + CODE_MARK_CLOSE;
+  });
+
+  working = working
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/__(.*?)__/g, '<strong>$1</strong>')
+    .replace(/(?<!\w)__(?!_)([^\s_](?:[^_]*[^\s_])?)__(?!\w)/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/_(.*?)_/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
+    .replace(/(?<!\w)_(?!_)([^\s_](?:[^_]*[^\s_])?)_(?!\w)/g, '<em>$1</em>')
     .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-blue-600 underline">$1</a>');
+
+  return working.replace(CODE_MARK_RE, (_match, idx: string) => codeSpans[Number(idx)]);
 };
 
 /**

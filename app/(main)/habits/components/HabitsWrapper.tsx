@@ -9,11 +9,13 @@ import ArchiveConfirmModal from "./ArchiveConfirmModal";
 import { formatDateLocal, useMediaQuery } from "@/lib/utils";
 import { Habit } from "./habit-types";
 import { HabitService, ApiHabit, ApiHabitCompletion } from "../services/habit-service";
-import { Plus } from "lucide-react";
+import { Plus, LayoutDashboard, ListChecks } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import HabitDashboard from "./dashboard/HabitDashboard";
 
 export default function HabitsWrapper() {
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "checklist">("dashboard");
   const [view, setView] = useState<"Week" | "Month">("Week");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -171,7 +173,7 @@ export default function HabitsWrapper() {
 
   if (loading && habits.length === 0) {
     return (
-      <div className="mx-auto min-h-screen bg-[#fcfcfd] p-4 md:p-8 animate-pulse">
+      <div className="mx-auto min-h-screen bg-[#fcfcfd] animate-pulse">
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 xl:gap-20">
           <div className="flex-1 space-y-12">
             {/* Header Skeleton */}
@@ -203,7 +205,32 @@ export default function HabitsWrapper() {
   }
 
   return (
-    <div className="mx-auto min-h-screen bg-[#fcfcfd] font-sans p-4 md:p-8 relative">
+    <div className="mx-auto min-h-screen bg-[#fcfcfd] font-sans relative">
+      <div className="flex bg-slate-100 p-1 rounded-xl gap-1 w-fit mb-6">
+        {([
+          { key: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
+          { key: "checklist" as const, label: "Checklist", icon: ListChecks },
+        ]).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === tab.key
+                ? "bg-white shadow-sm text-blue-600"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <tab.icon size={15} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "dashboard" && (
+        <HabitDashboard habits={habits} onAddHabitClick={() => setIsModalOpen(true)} />
+      )}
+
+      {activeTab === "checklist" && (
       <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 xl:gap-20">
         <div className="flex-1 space-y-8 md:space-y-12 overflow-hidden">
           <HabitHeader
@@ -291,6 +318,7 @@ export default function HabitsWrapper() {
           </div>
         </div>
       </div>
+      )}
 
       {isMobile && (
         <motion.button
