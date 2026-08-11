@@ -2,20 +2,12 @@
 
 import React, { useState } from "react";
 import { ProjectData } from "./task-types";
-import { 
-  Info, 
-  User, 
-  Target, 
-  Flag,
-  Edit2,
-  Check,
-  X,
+import {
+  User,
   Calendar,
-  Activity,
   BarChart3
 } from "lucide-react";
 import clsx from "clsx";
-import { format } from "date-fns";
 import CustomSelect from "./ui/CustomSelect";
 import CustomDateInput from "./ui/CustomDateInput";
 
@@ -33,202 +25,142 @@ const statusConfig = {
   completed: { label: "Completed", color: "text-blue-600 bg-blue-50 border-blue-100" },
 };
 
-export default function ProjectHeader({ 
-  projectName, 
-  folderName, 
+export default function ProjectHeader({
+  projectName,
+  folderName,
   projectData,
-  onUpdateProject 
+  onUpdateProject
 }: ProjectHeaderProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [description, setDescription] = useState(projectData.description || "");
-  const [owner, setOwner] = useState(projectData.metadata?.owner || "");
-  const [status, setStatus] = useState(projectData.status || "planning");
-  const [startDate, setStartDate] = useState(projectData.startDate || "");
-  const [endDate, setEndDate] = useState(projectData.endDate || "");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descDraft, setDescDraft] = useState("");
+  const [editingOwner, setEditingOwner] = useState(false);
+  const [ownerDraft, setOwnerDraft] = useState("");
 
   const totalTasks = projectData.tasks.length;
-  const completedTasks = projectData.tasks.filter(t => 
+  const completedTasks = projectData.tasks.filter(t =>
     t.status.toLowerCase().includes("done") || t.status.toLowerCase().includes("complete")
   ).length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  const handleSave = () => {
-    onUpdateProject({
-      description,
-      status: status as ProjectData["status"],
-      startDate,
-      endDate,
-      metadata: {
-        ...projectData.metadata,
-        owner
-      }
-    });
-    setIsEditing(false);
+  const statusKey = (projectData.status || "planning") as keyof typeof statusConfig;
+
+  // --- Description ---
+  const startEditDescription = () => {
+    setDescDraft(projectData.description || "");
+    setEditingDescription(true);
+  };
+  const saveDescription = () => {
+    setEditingDescription(false);
+    if (descDraft !== (projectData.description || "")) {
+      onUpdateProject({ description: descDraft });
+    }
   };
 
-  const priorityColor = projectData.metadata?.priority === "high" ? "text-red-500 bg-red-50" :
-                       projectData.metadata?.priority === "medium" ? "text-orange-500 bg-orange-50" :
-                       "text-blue-500 bg-blue-50";
+  // --- Owner ---
+  const startEditOwner = () => {
+    setOwnerDraft(projectData.metadata?.owner || "");
+    setEditingOwner(true);
+  };
+  const saveOwner = () => {
+    setEditingOwner(false);
+    if (ownerDraft !== (projectData.metadata?.owner || "")) {
+      onUpdateProject({ metadata: { ...projectData.metadata, owner: ownerDraft } });
+    }
+  };
 
   return (
-    <div className="px-8 py-8 bg-white border-b border-slate-100 animate-in fade-in slide-in-from-top-4 duration-500">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-start justify-between gap-8">
-          <div className="flex-1 space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">{folderName}</span>
-                  <span className="text-slate-300 text-[10px]">/</span>
-                  <span className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em]">{projectName}</span>
-                </div>
-                {!isEditing && projectData.status && (
-                  <div className={clsx(
-                    "px-2 py-0.5 rounded-full text-[9px] font-black uppercase border",
-                    statusConfig[projectData.status].color
-                  )}>
-                    {statusConfig[projectData.status].label}
-                  </div>
-                )}
-              </div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight">{projectName}</h1>
-            </div>
+    <div className="px-8 py-3 bg-white border-b border-slate-100 animate-in fade-in slide-in-from-top-4 duration-500 shrink-0">
+      <div className="max-w-6xl mx-auto flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">{folderName}</span>
+          <span className="text-slate-300 text-[9px]">/</span>
+        </div>
 
-            {isEditing ? (
-              <div className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Project Status</label>
-                      <CustomSelect
-                        label="Project Status"
-                        value={status}
-                        options={Object.entries(statusConfig).map(([id, cfg]) => ({ id, label: cfg.label }))}
-                        onChange={(val) => setStatus(val as NonNullable<ProjectData["status"]>)}
-                        triggerClassName="bg-white font-bold text-slate-700"
-                      />
-                   </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Owner</label>
-                      <input 
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                        value={owner}
-                        onChange={(e) => setOwner(e.target.value)}
-                        placeholder="Owner name"
-                      />
-                   </div>
-                </div>
+        <h1 className="text-lg font-black text-slate-900 tracking-tight shrink-0">{projectName}</h1>
 
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Date</label>
-                      <CustomDateInput
-                        mode="date"
-                        value={startDate}
-                        onChange={setStartDate}
-                        placeholder="Set start date"
-                        className="[&_button]:bg-white"
-                      />
-                   </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">End Date</label>
-                      <CustomDateInput
-                        mode="date"
-                        value={endDate}
-                        onChange={setEndDate}
-                        placeholder="Set end date"
-                        className="[&_button]:bg-white"
-                      />
-                   </div>
-                </div>
+        <CustomSelect
+          variant="minimal"
+          label="Project Status"
+          value={statusKey}
+          options={Object.entries(statusConfig).map(([id, cfg]) => ({ id, label: cfg.label }))}
+          onChange={(val) => onUpdateProject({ status: val as ProjectData["status"] })}
+          renderValue={() => (
+            <span className={clsx("px-2 py-0.5 rounded-full text-[9px] font-black uppercase border", statusConfig[statusKey].color)}>
+              {statusConfig[statusKey].label}
+            </span>
+          )}
+        />
 
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Description</label>
-                  <textarea
-                    className="w-full text-sm text-slate-600 bg-white rounded-xl p-4 border border-slate-200 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all resize-none leading-relaxed"
-                    placeholder="Add a project description..."
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-              </div>
+        {editingDescription ? (
+          <textarea
+            autoFocus
+            className="flex-1 min-w-[200px] text-xs text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 border border-slate-200 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all resize-none leading-relaxed"
+            placeholder="Add a description..."
+            rows={1}
+            value={descDraft}
+            onChange={(e) => setDescDraft(e.target.value)}
+            onBlur={saveDescription}
+          />
+        ) : (
+          <p
+            onClick={startEditDescription}
+            className="flex-1 min-w-[120px] truncate text-xs text-slate-400 cursor-text hover:text-slate-500 transition-colors"
+          >
+            {projectData.description || "Add a description..."}
+          </p>
+        )}
+
+        <div className="flex items-center gap-4 text-xs shrink-0">
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <User size={13} />
+            {editingOwner ? (
+              <input
+                autoFocus
+                value={ownerDraft}
+                onChange={(e) => setOwnerDraft(e.target.value)}
+                onBlur={saveOwner}
+                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                placeholder="Owner name"
+                className="font-bold text-slate-700 bg-transparent border-b border-blue-300 outline-none w-24"
+              />
             ) : (
-              <div className="space-y-6">
-                <p className="text-sm text-slate-500 leading-relaxed max-w-3xl">
-                  {projectData.description || "No description provided for this project. Add one to help your team understand the goals."}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
-                      <User size={18} />
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em]">Owner</p>
-                      <p className="text-xs font-black text-slate-700">{projectData.metadata?.owner || "Unassigned"}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
-                      <Calendar size={18} />
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em]">Timeline</p>
-                      <p className="text-xs font-black text-slate-700">
-                        {projectData.startDate ? format(new Date(projectData.startDate), "MMM d, yyyy") : "TBD"}
-                        <span className="mx-1.5 text-slate-300">→</span>
-                        {projectData.endDate ? format(new Date(projectData.endDate), "MMM d, yyyy") : "TBD"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
-                      <BarChart3 size={18} />
-                    </div>
-                    <div className="w-32">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em]">Progress</p>
-                        <span className="text-[10px] font-black text-blue-600">{progress}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out" 
-                          style={{ width: `${progress}%` }} 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <span
+                onClick={startEditOwner}
+                className="font-bold text-slate-600 cursor-text hover:text-blue-600 transition-colors"
+              >
+                {projectData.metadata?.owner || "Unassigned"}
+              </span>
             )}
           </div>
 
-          <div className="flex items-start gap-2 pt-2">
-            {isEditing ? (
-              <div className="flex flex-col gap-2">
-                <button 
-                  onClick={handleSave}
-                  className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition active:scale-95"
-                >
-                  <Check size={14} /> Update Project
-                </button>
-                <button 
-                  onClick={() => setIsEditing(false)}
-                  className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-50 transition"
-                >
-                  Discard
-                </button>
-              </div>
-            ) : (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition active:scale-95"
-              >
-                <Edit2 size={14} /> Settings
-              </button>
-            )}
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <Calendar size={13} />
+            <CustomDateInput
+              mode="date"
+              variant="inline"
+              value={projectData.startDate || ""}
+              onChange={(val) => onUpdateProject({ startDate: val })}
+              placeholder="TBD"
+            />
+            <span className="text-slate-300">→</span>
+            <CustomDateInput
+              mode="date"
+              variant="inline"
+              value={projectData.endDate || ""}
+              onChange={(val) => onUpdateProject({ endDate: val })}
+              placeholder="TBD"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <BarChart3 size={13} />
+            <div className="w-14 h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <span className="font-black text-blue-600">{progress}%</span>
           </div>
         </div>
       </div>

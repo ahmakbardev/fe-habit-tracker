@@ -61,7 +61,7 @@ export default function TasksClientWrapper() {
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
 
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
 
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [defaultTaskStatus, setDefaultTaskStatus] = useState<string | undefined>(undefined);
@@ -275,6 +275,31 @@ export default function TasksClientWrapper() {
     replaceTask(await TaskService.removeAssignee(taskId, userId));
   }, [replaceTask]);
 
+  const handleUpdateSubtaskFields = useCallback(async (subtaskId: string, fields: Partial<{
+    priority: "low" | "medium" | "high" | null; due_date: string | null; assignee_id: number | null;
+  }>) => {
+    replaceTask(await TaskService.updateSubtask(subtaskId, fields));
+  }, [replaceTask]);
+
+  const handleConvertSubtask = useCallback(async (subtaskId: string) => {
+    const { task, created_task } = await TaskService.convertSubtaskToTask(subtaskId);
+    const mappedTask = mapApiTask(task);
+    const mappedNewTask = mapApiTask(created_task);
+    setProjectData((prev) => (prev
+      ? { ...prev, tasks: [mappedNewTask, ...prev.tasks.map((t) => (t.id === mappedTask.id ? mappedTask : t))] }
+      : prev));
+    setSelectedTask((prev) => (prev && prev.id === mappedTask.id ? mappedTask : prev));
+    setProjects((prev) => prev.map((p) => (p.id === activeProjectId ? { ...p, tasksCount: (p.tasksCount ?? 0) + 1 } : p)));
+  }, [activeProjectId]);
+
+  const handleAttachNote = useCallback(async (taskId: string, noteId: string) => {
+    replaceTask(await TaskService.attachNote(taskId, noteId));
+  }, [replaceTask]);
+
+  const handleDetachNote = useCallback(async (taskNoteId: string) => {
+    replaceTask(await TaskService.detachNote(taskNoteId));
+  }, [replaceTask]);
+
   const viewOptions = [
     { id: "kanban", icon: Columns, label: "Kanban" },
     { id: "table", icon: List, label: "Table" },
@@ -297,7 +322,7 @@ export default function TasksClientWrapper() {
         />
       )}
 
-      <main className="flex-1 h-full overflow-hidden flex flex-col min-w-0">
+      <main className="flex-1 h-full overflow-y-auto flex flex-col min-w-0">
         {loadingWorkspaces ? (
           <div className="flex-1 flex items-center justify-center bg-slate-50/30 animate-pulse">
             <div className="flex flex-col items-center gap-3">
@@ -334,7 +359,7 @@ export default function TasksClientWrapper() {
             <div className="w-10 h-10 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="h-full flex flex-col">
+          <div className="flex flex-col min-h-full">
             <ProjectHeader
               projectName={projects.find((p) => p.id === activeProjectId)?.name || ""}
               folderName={workspaces.find((w) => w.id === activeWorkspaceId)?.name || ""}
@@ -380,7 +405,7 @@ export default function TasksClientWrapper() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1">
               {viewMode === "kanban" && (
                 <TasksKanbanBoard
                   columns={projectData.columns}
@@ -425,12 +450,17 @@ export default function TasksClientWrapper() {
           onAddSubtask={handleAddSubtask}
           onToggleSubtask={handleToggleSubtask}
           onDeleteSubtask={handleDeleteSubtask}
+          onUpdateSubtaskFields={handleUpdateSubtaskFields}
+          onConvertSubtask={handleConvertSubtask}
           onAddComment={handleAddComment}
           onTogglePinComment={handleTogglePinComment}
           onAddAttachment={handleAddAttachment}
           onDeleteAttachment={handleDeleteAttachment}
           onAddAssignee={handleAddAssignee}
           onRemoveAssignee={handleRemoveAssignee}
+          workspaceId={activeWorkspaceId}
+          onAttachNote={handleAttachNote}
+          onDetachNote={handleDetachNote}
         />
       )}
 

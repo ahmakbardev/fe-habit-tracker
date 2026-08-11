@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Link2, Globe, Copy, Check, Loader2 } from "lucide-react";
 import { NoteService, ApiNote } from "../services/note-service";
 
@@ -51,7 +52,13 @@ export default function ShareNoteModal({ noteId, noteTitle, onClose }: Props) {
     }
   };
 
-  return (
+  // Rendered via a portal straight onto <body> so this "fixed" overlay is
+  // always positioned against the real viewport — a transformed ancestor
+  // (e.g. the Task drawer's stacking animation, or framer-motion's own
+  // inline transform on NoteDetailPanel) would otherwise become the
+  // containing block for `position: fixed` and confine this modal to that
+  // ancestor's box instead of the whole screen.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={e => e.target === e.currentTarget && onClose()}
@@ -141,6 +148,7 @@ export default function ShareNoteModal({ noteId, noteTitle, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

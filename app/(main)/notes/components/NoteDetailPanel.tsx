@@ -15,6 +15,18 @@ type Props = {
   onUpdate: (note: NoteItem) => Promise<void>; // Ubah ke Promise agar bisa ditunggu
   onCreateNew: () => void;
   isMobile?: boolean;
+  /** "x" (default): standalone close. "back": this panel was drilled into
+   *  from somewhere else (e.g. a Task's linked notes), so onClose means
+   *  "return to the previous view", shown as a back arrow instead. */
+  closeVariant?: "x" | "back";
+  /** Hide the "New" button when this panel is embedded outside the Notes
+   *  page's own folder context (there's nowhere sensible for a new note
+   *  to land). Defaults to shown, matching the Notes page. */
+  showNewButton?: boolean;
+  /** Tighter padding + smaller title/editor type scale, for embedding in a
+   *  narrow host (e.g. the Task detail drawer) instead of the full-width
+   *  Notes page. Defaults to the Notes page's normal, larger scale. */
+  compact?: boolean;
 };
 
 export default function NoteDetailPanel({
@@ -24,6 +36,9 @@ export default function NoteDetailPanel({
   onUpdate,
   onCreateNew,
   isMobile = false,
+  closeVariant = "x",
+  showNewButton = true,
+  compact = false,
 }: Props) {
   // Simpan ID sebelumnya untuk mendeteksi perpindahan note
   const prevNoteIdRef = useRef(note.id);
@@ -98,7 +113,7 @@ export default function NoteDetailPanel({
       transition={isMobile ? { duration: 0.15 } : { type: "spring", stiffness: 300, damping: 30 }}
       className={clsx(
         "bg-white overflow-y-auto outline-none",
-        isMobile ? "fixed inset-0 z-[60] p-6" : "relative flex-1 border-l p-10 h-full"
+        isMobile ? "fixed inset-0 z-[60] p-6" : compact ? "relative flex-1 p-6 h-full" : "relative flex-1 border-l p-10 h-full"
       )}
     >
       {/* HEADER: Close, Status, Actions */}
@@ -107,9 +122,9 @@ export default function NoteDetailPanel({
           <button
             onClick={onClose}
             className="p-1 -ml-1 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
-            title={isMobile ? "Back" : "Close (Esc)"}
+            title={isMobile || closeVariant === "back" ? "Back" : "Close (Esc)"}
           >
-            {isMobile ? <ArrowLeft className="w-6 h-6" /> : <X className="w-6 h-6" />}
+            {isMobile || closeVariant === "back" ? <ArrowLeft className="w-6 h-6" /> : <X className="w-6 h-6" />}
           </button>
 
           {/* SUBTLE SAVE STATUS */}
@@ -127,7 +142,7 @@ export default function NoteDetailPanel({
 
         {/* KANAN: Actions Group */}
         <div className="flex items-center gap-1 md:gap-2">
-          {!isMobile && (
+          {!isMobile && showNewButton && (
             <button
               onClick={onCreateNew}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-black hover:bg-slate-100 rounded-md transition"
@@ -137,7 +152,7 @@ export default function NoteDetailPanel({
             </button>
           )}
 
-          {!isMobile && <div className="w-px h-4 bg-slate-200 mx-1"></div>}
+          {!isMobile && showNewButton && <div className="w-px h-4 bg-slate-200 mx-1"></div>}
 
           <button
             onClick={() => setShowShare(true)}
@@ -165,13 +180,15 @@ export default function NoteDetailPanel({
         onKeyDown={handleTitleKeyDown}
         className={clsx(
           "font-bold w-full outline-none pb-2 pt-1 leading-tight mb-4 text-slate-900 placeholder:text-slate-300",
-          isMobile ? "text-3xl" : "text-4xl"
+          isMobile ? "text-3xl" : compact ? "text-2xl" : "text-4xl"
         )}
         placeholder="Untitled"
       />
 
       {/* BODY */}
-      <RichTextEditor key={note.id} value={body} onChange={(v) => setBody(v)} />
+      <div className={clsx(compact && "compact-note-editor")}>
+        <RichTextEditor key={note.id} value={body} onChange={(v) => setBody(v)} />
+      </div>
 
       {showShare && (
         <ShareNoteModal
