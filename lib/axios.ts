@@ -27,7 +27,11 @@ api.interceptors.response.use(
   },
   error => {
     const url = error.config?.url || 'unknown url';
-    console.error(`❌ %cError from ${url}`, 'color: #dc3545; font-weight: bold;', {
+    // console.warn, bukan console.error — supaya kegagalan request yang sudah
+    // ditangani (mis. 401 "Invalid credentials") tidak memicu overlay
+    // "Console Error" bawaan Next.js dev mode, yang menganggap setiap
+    // console.error sebagai unhandled error.
+    console.warn(`❌ %cError from ${url}`, 'color: #dc3545; font-weight: bold;', {
       status: error.response?.status,
       data: error.response?.data,
       message: error.message

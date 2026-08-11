@@ -12,6 +12,17 @@ export type Subtask = {
   id: string;
   title: string;
   completed: boolean;
+  priority?: "low" | "medium" | "high" | null;
+  dueDate?: string | null;
+  assignee?: Assignee | null;
+};
+
+export type TaskNote = {
+  id: string;
+  noteId: string;
+  title: string;
+  folderId: string;
+  workspaceId: string | null;
 };
 
 export type TaskAttachment = {
@@ -49,10 +60,10 @@ export type TaskItem = {
   dueDate?: string;
   createdAt?: string;
   tags?: string[];
-  linkedNoteId?: string;
   progress?: number;
   assignees?: Assignee[];
   attachments?: TaskAttachment[];
+  notes?: TaskNote[];
   subtasks?: Subtask[];
   comments?: TaskComment[];
   activities?: ActivityEntry[];

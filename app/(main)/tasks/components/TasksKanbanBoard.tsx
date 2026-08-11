@@ -102,14 +102,14 @@ export default function TasksKanbanBoard({
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-slate-50">
+    <div className="min-h-full flex flex-col bg-slate-50">
       <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="all-columns" direction="horizontal" type="column">
           {(provided) => (
             <div
               {...provided.droppableProps}
               ref={provided.innerRef}
-              className="flex gap-6 p-6 h-full overflow-x-auto min-w-full items-start"
+              className="flex-1 flex gap-6 p-6 overflow-x-auto min-w-full items-start"
             >
               {columns.map((column, index) => {
                 const columnTasks = tasks.filter((t) => t.status === column.id);
@@ -120,7 +120,7 @@ export default function TasksKanbanBoard({
                       <div
                         {...provided.draggableProps}
                         ref={provided.innerRef}
-                        className="flex flex-col w-80 min-w-[320px] max-h-full"
+                        className="flex flex-col w-80 min-w-[320px]"
                       >
                         {/* Column Header */}
                         <div 
@@ -194,7 +194,7 @@ export default function TasksKanbanBoard({
                             <div
                               {...provided.droppableProps}
                               ref={provided.innerRef}
-                              className={`flex-1 overflow-y-auto min-h-[150px] rounded-xl transition-colors pb-10 ${
+                              className={`min-h-[150px] rounded-xl transition-colors pb-10 ${
                                 snapshot.isDraggingOver ? "bg-slate-200/50" : ""
                               }`}
                             >

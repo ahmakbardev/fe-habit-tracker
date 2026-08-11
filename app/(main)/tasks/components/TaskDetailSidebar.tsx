@@ -1,6 +1,6 @@
 "use client";
 
-import { TaskItem, KanbanColumn, TaskAttachment, TaskComment } from "./task-types";
+import { TaskItem, KanbanColumn, TaskAttachment, TaskComment, Subtask, TaskNote } from "./task-types";
 import {
   X,
   Calendar,
@@ -27,6 +27,7 @@ import {
   CheckSquare,
   Pin,
   PinOff,
+  ArrowUpRight,
 } from "lucide-react";
 import clsx from "clsx";
 import { format, isValid } from "date-fns";
@@ -41,6 +42,8 @@ import { NoteService } from "../../notes/services/note-service";
 import CommentRichEditor, { commentContentClasses, isCommentEmpty, sanitizeCommentHtml } from "./CommentRichEditor";
 import CustomSelect from "./ui/CustomSelect";
 import CustomDateInput from "./ui/CustomDateInput";
+import TaskNotesSection from "./TaskNotesSection";
+import TaskNoteDrawer from "./TaskNoteDrawer";
 
 type TaskDetailSidebarProps = {
   task: TaskItem | null;
@@ -54,12 +57,19 @@ type TaskDetailSidebarProps = {
   onAddSubtask: (taskId: string, title: string) => Promise<void>;
   onToggleSubtask: (subtaskId: string, completed: boolean) => Promise<void>;
   onDeleteSubtask: (subtaskId: string) => Promise<void>;
+  onUpdateSubtaskFields: (subtaskId: string, fields: Partial<{
+    priority: "low" | "medium" | "high" | null; due_date: string | null; assignee_id: number | null;
+  }>) => Promise<void>;
+  onConvertSubtask: (subtaskId: string) => Promise<void>;
   onAddComment: (taskId: string, data: { body?: string; image_url?: string; image_name?: string }) => Promise<void>;
   onTogglePinComment: (commentId: string, pinned: boolean) => Promise<void>;
   onAddAttachment: (taskId: string, data: { name: string; url: string; extension?: string; size?: number }) => Promise<void>;
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
   onAddAssignee: (taskId: string, userId: number) => Promise<void>;
   onRemoveAssignee: (taskId: string, userId: number) => Promise<void>;
+  workspaceId: string | null;
+  onAttachNote: (taskId: string, noteId: string) => Promise<void>;
+  onDetachNote: (taskNoteId: string) => Promise<void>;
 };
 
 type TabId = "details" | "subtasks" | "comments" | "activities";
@@ -80,6 +90,10 @@ const STATUS_PALETTE = [
 ];
 
 const AVATAR_COLORS = ["bg-blue-500", "bg-purple-500", "bg-pink-500", "bg-emerald-500", "bg-amber-500", "bg-cyan-500", "bg-indigo-500"];
+
+const DEFAULT_PANEL_WIDTH = 480;
+const MIN_NOTE_WIDTH = 420;
+const MAX_NOTE_WIDTH = 860;
 
 function hashString(value: string): number {
   let hash = 0;
@@ -149,15 +163,23 @@ export default function TaskDetailSidebar({
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
+  onUpdateSubtaskFields,
+  onConvertSubtask,
   onAddComment,
   onTogglePinComment,
   onAddAttachment,
   onDeleteAttachment,
   onAddAssignee,
   onRemoveAssignee,
+  workspaceId,
+  onAttachNote,
+  onDetachNote,
 }: TaskDetailSidebarProps) {
   const [me, setMe] = useState<ProfileData | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("details");
+  const [openNote, setOpenNote] = useState<TaskNote | null>(null);
+  const [noteWidth, setNoteWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const panelContainerRef = useRef<HTMLDivElement>(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [newCommentText, setNewCommentText] = useState("");
   const [pendingCommentImage, setPendingCommentImage] = useState<{ url: string; name: string; file: File } | null>(null);
@@ -181,6 +203,7 @@ export default function TaskDetailSidebar({
     setEditingTitle(false);
     setEditingDescription(false);
     setProgressDraft(task?.progress ?? 0);
+    setOpenNote(null);
   }, [task?.id, task?.progress]);
 
   // Jump to the top of the content area whenever the tab changes, so
@@ -276,8 +299,13 @@ export default function TaskDetailSidebar({
   // --- Attachments ---
   const handleFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    // Snapshot the files before resetting the input — `files` is a live
+    // reference to the same FileList as `fileInputRef.current.files`, so
+    // clearing the input's value truncates it out from under us if we
+    // read it lazily afterwards (e.g. via Array.from inside the loop).
+    const selectedFiles = Array.from(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
-    for (const file of Array.from(files)) {
+    for (const file of selectedFiles) {
       try {
         const { url } = await NoteService.uploadMedia(file);
         if (!url) continue;
@@ -306,6 +334,45 @@ export default function TaskDetailSidebar({
     attachments.filter((a) => a.url).forEach((a) => downloadAttachment(a));
   };
 
+  // --- Notes ---
+  // Drag-resize the note drawer's width. The task panel behind it keeps
+  // peeking out by the same fixed -translate-x offset regardless of width,
+  // since that offset is relative to the note panel itself, not the
+  // container's size.
+  const handleNoteResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = noteWidth;
+
+    const clamp = (w: number) => Math.min(MAX_NOTE_WIDTH, Math.max(MIN_NOTE_WIDTH, w));
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const nextWidth = clamp(startWidth + (startX - ev.clientX));
+      if (panelContainerRef.current) {
+        panelContainerRef.current.style.width = `${nextWidth}px`;
+      }
+    };
+
+    const handleMouseUp = (ev: MouseEvent) => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setNoteWidth(clamp(startWidth + (startX - ev.clientX)));
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleNoteDeleted = (noteId: string) => {
+    const pivot = (task.notes || []).find((n) => n.noteId === noteId);
+    if (pivot) onDetachNote(pivot.id).catch(console.error);
+    setOpenNote(null);
+  };
+
   // --- Subtasks ---
   const addSubtask = () => {
     if (!newSubtaskTitle.trim()) return;
@@ -321,6 +388,24 @@ export default function TaskDetailSidebar({
 
   const removeSubtask = (id: string) => {
     onDeleteSubtask(id).catch(console.error);
+  };
+
+  const handleSubtaskPriority = (id: string, priority: string) => {
+    onUpdateSubtaskFields(id, { priority: priority === "none" ? null : (priority as Subtask["priority"]) }).catch(console.error);
+  };
+
+  const handleSubtaskDueDate = (id: string, val: string) => {
+    onUpdateSubtaskFields(id, { due_date: val || null }).catch(console.error);
+  };
+
+  const toggleSubtaskAssignee = (s: Subtask) => {
+    if (!me) return;
+    const isMe = !!s.assignee && Number(s.assignee.id) === me.id;
+    onUpdateSubtaskFields(s.id, { assignee_id: isMe ? null : me.id }).catch(console.error);
+  };
+
+  const convertSubtask = (id: string) => {
+    onConvertSubtask(id).catch(console.error);
   };
 
   // --- Comments ---
@@ -426,7 +511,21 @@ export default function TaskDetailSidebar({
   );
 
   return (
-    <aside className="h-[calc(100%-24px)] my-3 mr-3 w-[480px] bg-white border border-slate-200 rounded-2xl overflow-hidden z-30 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 flex-shrink-0">
+    <div
+      ref={panelContainerRef}
+      className="relative h-[calc(100%-24px)] my-3 mr-3 flex-shrink-0"
+      style={{ width: openNote ? noteWidth : DEFAULT_PANEL_WIDTH }}
+    >
+      {/* Task panel — stays mounted underneath as the "back" card of the
+          stack when a note is drilled into, peeking out from behind it. */}
+      <aside
+        className={clsx(
+          "absolute inset-0 bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col transition-all duration-300 animate-in slide-in-from-right",
+          openNote
+            ? "z-30 -translate-x-7 shadow-md opacity-90 pointer-events-none"
+            : "z-40 translate-x-0 shadow-2xl"
+        )}
+      >
       {/* Header */}
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <button onClick={onClose} className="p-2 -ml-2 hover:bg-slate-100 rounded-lg transition">
@@ -725,6 +824,15 @@ export default function TaskDetailSidebar({
                 <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
               </div>
             </div>
+
+            {/* Notes */}
+            <TaskNotesSection
+              workspaceId={workspaceId}
+              notes={task.notes || []}
+              onAttach={(noteId) => onAttachNote(task.id, noteId)}
+              onDetach={onDetachNote}
+              onOpen={(note) => setOpenNote(note)}
+            />
           </div>
         )}
 
@@ -733,21 +841,89 @@ export default function TaskDetailSidebar({
             {subtasks.length > 0 && (
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{completedSubtasks}/{subtasks.length} completed</p>
             )}
-            {subtasks.map((s) => (
-              <div key={s.id} className="rounded-xl hover:bg-slate-50 transition-colors">
-                <div className="flex items-start gap-2.5 px-2 py-2">
-                  <button onClick={() => toggleSubtask(s.id)} className="mt-0.5 shrink-0 text-slate-400 hover:text-blue-600 transition">
-                    {s.completed ? <CheckSquare className="w-[18px] h-[18px] text-blue-600" /> : <Square className="w-[18px] h-[18px]" />}
-                  </button>
-                  <span className={clsx("flex-1 text-left text-sm font-medium py-0.5", s.completed ? "text-slate-400 line-through" : "text-slate-700")}>
-                    {s.title}
-                  </span>
-                  <button onClick={() => removeSubtask(s.id)} className="text-slate-300 hover:text-red-500 transition shrink-0">
-                    <X size={13} />
-                  </button>
+            {subtasks.map((s) => {
+              const subtaskPriorityKey = (s.priority || "none") as keyof typeof priorityConfig | "none";
+              const isMeAssigned = !!s.assignee && !!me && Number(s.assignee.id) === me.id;
+              return (
+                <div key={s.id} className="rounded-xl hover:bg-slate-50 transition-colors px-2 py-2">
+                  <div className="flex items-start gap-2.5">
+                    <button onClick={() => toggleSubtask(s.id)} className="mt-0.5 shrink-0 text-slate-400 hover:text-blue-600 transition">
+                      {s.completed ? <CheckSquare className="w-[18px] h-[18px] text-blue-600" /> : <Square className="w-[18px] h-[18px]" />}
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <span className={clsx("block text-left text-sm font-medium py-0.5", s.completed ? "text-slate-400 line-through" : "text-slate-700")}>
+                        {s.title}
+                      </span>
+
+                      <div className="flex items-center flex-wrap gap-2 mt-1">
+                        <CustomSelect
+                          variant="minimal"
+                          label="Priority"
+                          value={s.priority || "none"}
+                          options={[
+                            { id: "none", label: "No priority" },
+                            { id: "low", label: "Low" },
+                            { id: "medium", label: "Medium" },
+                            { id: "high", label: "High" },
+                          ]}
+                          onChange={(val) => handleSubtaskPriority(s.id, val)}
+                          renderValue={() =>
+                            subtaskPriorityKey === "none" ? (
+                              <span className="text-[10px] font-bold text-slate-300">+ Priority</span>
+                            ) : (
+                              <span className={clsx("inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider", priorityConfig[subtaskPriorityKey].bg, priorityConfig[subtaskPriorityKey].color)}>
+                                {s.priority}
+                              </span>
+                            )
+                          }
+                        />
+
+                        <div className="flex items-center gap-1 text-slate-300">
+                          <Clock size={11} />
+                          <CustomDateInput
+                            mode="datetime"
+                            variant="inline"
+                            value={s.dueDate || ""}
+                            onChange={(val) => handleSubtaskDueDate(s.id, val)}
+                            placeholder="Due date"
+                          />
+                        </div>
+
+                        {isMeAssigned ? (
+                          <button
+                            onClick={() => toggleSubtaskAssignee(s)}
+                            title="Remove assignee"
+                            className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-red-500 transition"
+                          >
+                            <Avatar name={s.assignee!.name} avatarUrl={s.assignee!.avatarUrl} size={15} /> Me
+                          </button>
+                        ) : (
+                          me && (
+                            <button
+                              onClick={() => toggleSubtaskAssignee(s)}
+                              title="Assign to me"
+                              className="flex items-center gap-1 text-[10px] font-bold text-slate-300 hover:text-slate-600 transition"
+                            >
+                              <UserPlus size={11} /> Assign
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => convertSubtask(s.id)} title="Convert to task" className="text-slate-300 hover:text-blue-500 transition">
+                        <ArrowUpRight size={14} />
+                      </button>
+                      <button onClick={() => removeSubtask(s.id)} title="Delete subtask" className="text-slate-300 hover:text-red-500 transition">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div className="flex items-center gap-2 pt-2">
               <input
                 value={newSubtaskTitle}
@@ -835,6 +1011,25 @@ export default function TaskDetailSidebar({
           </div>
         )}
       </div>
-    </aside>
+      </aside>
+
+      {/* Note panel — the "front" card of the stack, drilled into from the
+          task's Notes section. Slightly offset from the task panel behind it. */}
+      {openNote && (
+        <aside className="absolute inset-0 z-40 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          {/* Drag handle — resizes the note drawer's width in realtime. The
+              task panel behind keeps peeking by the same fixed offset. */}
+          <div
+            onMouseDown={handleNoteResizeStart}
+            title="Drag to resize"
+            className="absolute left-0 top-0 bottom-0 w-2 z-50 cursor-col-resize group flex items-center justify-center"
+          >
+            <div className="absolute inset-y-0 left-0 w-px bg-transparent group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors" />
+            <div className="w-1 h-10 rounded-full bg-slate-200 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors" />
+          </div>
+          <TaskNoteDrawer noteId={openNote.noteId} onBack={() => setOpenNote(null)} onDeleted={handleNoteDeleted} />
+        </aside>
+      )}
+    </div>
   );
 }

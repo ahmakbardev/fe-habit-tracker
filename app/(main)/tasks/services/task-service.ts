@@ -11,6 +11,7 @@ import {
   TaskComment,
   ActivityEntry,
   Assignee,
+  TaskNote,
 } from "../components/task-types";
 
 export interface ApiUser {
@@ -47,6 +48,17 @@ export interface ApiTaskSubtask {
   task_id: string;
   title: string;
   completed: boolean;
+  priority: "low" | "medium" | "high" | null;
+  due_date: string | null;
+  assignee: ApiUser | null;
+}
+
+export interface ApiTaskNote {
+  id: string;
+  note_id: string;
+  title: string;
+  folder_id: string;
+  workspace_id: string | null;
 }
 
 export interface ApiTaskAttachment {
@@ -93,6 +105,7 @@ export interface ApiTask {
   comments: ApiTaskComment[];
   activities: ApiTaskActivity[];
   assignees: ApiUser[];
+  notes: ApiTaskNote[];
 }
 
 const unwrap = <T>(response: { data: unknown }): T => {
@@ -123,7 +136,18 @@ export function mapApiUser(user: ApiUser): Assignee {
 }
 
 export function mapApiSubtask(s: ApiTaskSubtask): Subtask {
-  return { id: s.id, title: s.title, completed: s.completed };
+  return {
+    id: s.id,
+    title: s.title,
+    completed: s.completed,
+    priority: s.priority,
+    dueDate: toLocalDateTimeString(s.due_date) ?? null,
+    assignee: s.assignee ? mapApiUser(s.assignee) : null,
+  };
+}
+
+export function mapApiTaskNote(n: ApiTaskNote): TaskNote {
+  return { id: n.id, noteId: n.note_id, title: n.title, folderId: n.folder_id, workspaceId: n.workspace_id };
 }
 
 export function mapApiAttachment(a: ApiTaskAttachment): TaskAttachment {
@@ -167,6 +191,7 @@ export function mapApiTask(t: ApiTask): TaskItem {
     progress: t.progress,
     assignees: (t.assignees || []).map(mapApiUser),
     attachments: (t.attachments || []).map(mapApiAttachment),
+    notes: (t.notes || []).map(mapApiTaskNote),
     subtasks: (t.subtasks || []).map(mapApiSubtask),
     comments: (t.comments || []).map(mapApiComment),
     activities: (t.activities || []).map(mapApiActivity),
@@ -263,13 +288,23 @@ export const TaskService = {
     return unwrap(response);
   },
 
-  updateSubtask: async (id: string, data: Partial<{ title: string; completed: boolean }>): Promise<ApiTask> => {
-    const response = await api.patch(`/tasks/subtasks/${id}`, data);
+  updateSubtask: async (id: string, data: Partial<{
+    title: string; completed: boolean; priority: "low" | "medium" | "high" | null;
+    due_date: string | null; assignee_id: number | null;
+  }>): Promise<ApiTask> => {
+    const payload: Record<string, unknown> = { ...data };
+    if ("due_date" in data) payload.due_date = fromLocalDateTimeString(data.due_date ?? undefined);
+    const response = await api.patch(`/tasks/subtasks/${id}`, payload);
     return unwrap(response);
   },
 
   deleteSubtask: async (id: string): Promise<ApiTask> => {
     const response = await api.delete(`/tasks/subtasks/${id}`);
+    return unwrap(response);
+  },
+
+  convertSubtaskToTask: async (id: string): Promise<{ task: ApiTask; created_task: ApiTask }> => {
+    const response = await api.post(`/tasks/subtasks/${id}/convert`);
     return unwrap(response);
   },
 
@@ -295,6 +330,16 @@ export const TaskService = {
 
   deleteAttachment: async (id: string): Promise<ApiTask> => {
     const response = await api.delete(`/tasks/attachments/${id}`);
+    return unwrap(response);
+  },
+
+  attachNote: async (taskId: string, noteId: string): Promise<ApiTask> => {
+    const response = await api.post(`/tasks/${taskId}/notes`, { note_id: noteId });
+    return unwrap(response);
+  },
+
+  detachNote: async (id: string): Promise<ApiTask> => {
+    const response = await api.delete(`/tasks/notes/${id}`);
     return unwrap(response);
   },
 
