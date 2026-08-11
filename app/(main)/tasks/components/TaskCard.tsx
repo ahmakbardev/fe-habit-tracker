@@ -1,9 +1,12 @@
 "use client";
 
+import { useState, type CSSProperties } from "react";
 import { TaskItem } from "./task-types";
 import { Draggable } from "@hello-pangea/dnd";
 import { MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
+import FolderIcon from "@/components/icons/FolderIcon";
+import FileTypeIcon from "@/components/icons/FileTypeIcon";
 
 const AVATAR_COLORS = ["bg-blue-500", "bg-purple-500", "bg-pink-500", "bg-emerald-500", "bg-amber-500", "bg-cyan-500", "bg-indigo-500"];
 const TAG_PALETTE = [
@@ -15,6 +18,51 @@ const TAG_PALETTE = [
   { bg: "bg-cyan-100", text: "text-cyan-700" },
 ];
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
+
+function fileTypeVariant(extension: string): "pdf" | "xlsx" | "doc" {
+  const ext = extension.toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "xlsx";
+  return "doc";
+}
+
+// Peeking-file "slots" inside the folder icon — position/rotation are fixed
+// per slot, but width is derived from whichever FileTypeIcon variant ends up
+// there (aspect ratio differs: xlsx is square, pdf/doc are a taller page
+// shape) rather than hardcoded, since which attachment lands in which slot
+// depends on array order, not file type. A fixed width sized for one shape
+// would otherwise squash/shrink a different-shaped icon landing in that slot.
+type FileIconSlot = {
+  centerX: number;
+  y: number;
+  targetHeight: number;
+  rotate: number;
+  delay: number;
+  // Extra offset applied on top of the resting position while the
+  // thumbnail box is hovered, so files fan out a bit further apart instead
+  // of just sitting still.
+  hoverSpreadX: number;
+  hoverSpreadY: number;
+};
+
+const FILE_ICON_ASPECT: Record<"pdf" | "xlsx" | "doc", number> = { pdf: 0.8, doc: 0.8, xlsx: 1 };
+
+const FILE_ICON_SLOT_LEFT: FileIconSlot = { centerX: 51.5, y: -6, targetHeight: 106, rotate: -9, delay: 680, hoverSpreadX: -10, hoverSpreadY: 4 };
+const FILE_ICON_SLOT_CENTER: FileIconSlot = { centerX: 113, y: -18, targetHeight: 118, rotate: 0, delay: 550, hoverSpreadX: 0, hoverSpreadY: -8 };
+const FILE_ICON_SLOT_RIGHT: FileIconSlot = { centerX: 168, y: 7, targetHeight: 72, rotate: 20, delay: 810, hoverSpreadX: 10, hoverSpreadY: -4 };
+
+// Dedicated (closer-together) pair used only for the 2-attachment case —
+// same rotation angles as the left/right slots above, just squeezed nearer
+// the folder's center instead of spread apart, with closer-matched heights
+// so neither icon reads as oddly small next to the other.
+const FILE_ICON_SLOT_PAIR_LEFT: FileIconSlot = { centerX: 79.5, y: -6, targetHeight: 106, rotate: -9, delay: 680, hoverSpreadX: -9, hoverSpreadY: 4 };
+const FILE_ICON_SLOT_PAIR_RIGHT: FileIconSlot = { centerX: 128, y: 3, targetHeight: 90, rotate: 20, delay: 810, hoverSpreadX: 9, hoverSpreadY: -3 };
+
+const FILE_ICON_SLOTS_BY_COUNT: Record<number, FileIconSlot[]> = {
+  1: [FILE_ICON_SLOT_CENTER],
+  2: [FILE_ICON_SLOT_PAIR_LEFT, FILE_ICON_SLOT_PAIR_RIGHT],
+  3: [FILE_ICON_SLOT_LEFT, FILE_ICON_SLOT_CENTER, FILE_ICON_SLOT_RIGHT],
+};
 
 function hashString(value: string): number {
   let hash = 0;
@@ -81,6 +129,10 @@ export default function TaskCard({ task, index, onClick }: TaskCardProps) {
   const thumbnail = task.attachments?.find(
     (a) => a.url && IMAGE_EXTENSIONS.includes(a.extension.toLowerCase())
   );
+  const attachmentCount = task.attachments?.length ?? 0;
+  const peekingFiles = (task.attachments || []).slice(0, 3);
+  const peekingFileSlots = FILE_ICON_SLOTS_BY_COUNT[peekingFiles.length] || [];
+  const [hoveredFileId, setHoveredFileId] = useState<string | null>(null);
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -128,14 +180,64 @@ export default function TaskCard({ task, index, onClick }: TaskCardProps) {
             </p>
           )}
 
-          {thumbnail && (
+          {thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={thumbnail.url}
               alt={thumbnail.name}
               className="w-full h-24 object-cover rounded-xl border border-slate-100 mb-3"
             />
-          )}
+          ) : attachmentCount > 0 ? (
+            <div className="attach-hover-group relative w-full h-40 rounded-xl border border-slate-100 bg-slate-50/60 mb-3 overflow-hidden">
+              <div className="folder-hover-wrap absolute top-6 left-1/2 w-3/5">
+                <FolderIcon className="folder-pop-in w-full">
+                  {peekingFiles.map((file, i) => {
+                    const slot = peekingFileSlots[i];
+                    if (!slot) return null;
+                    const variant = fileTypeVariant(file.extension);
+                    const height = slot.targetHeight;
+                    const width = height * FILE_ICON_ASPECT[variant];
+                    const x = slot.centerX - width / 2;
+                    const origin = slot.rotate !== 0 ? `${slot.centerX}px ${slot.y + height}px` : undefined;
+                    const isHovered = hoveredFileId === file.id;
+                    return (
+                      <g
+                        key={file.id}
+                        className="file-icon-pop-in"
+                        style={{
+                          animationDelay: `${slot.delay}ms`,
+                          ...(origin ? { transformOrigin: origin } : {}),
+                          "--file-rotate": `${slot.rotate}deg`,
+                        } as CSSProperties}
+                      >
+                        <g
+                          className="file-hover-spread"
+                          style={{
+                            "--file-spread-x": `${slot.hoverSpreadX}px`,
+                            "--file-spread-y": `${slot.hoverSpreadY}px`,
+                          } as CSSProperties}
+                          onMouseEnter={() => setHoveredFileId(file.id)}
+                          onMouseLeave={() => setHoveredFileId((current) => (current === file.id ? null : current))}
+                        >
+                          <FileTypeIcon variant={variant} x={x} y={slot.y} width={width} height={height} />
+                          <foreignObject x={slot.centerX - 100} y={slot.y - 30} width={200} height={26} className="pointer-events-none">
+                            <div
+                              {...{ xmlns: "http://www.w3.org/1999/xhtml" }}
+                              className={clsx("file-tooltip flex justify-center", isHovered && "file-tooltip-visible")}
+                            >
+                              <span className="max-w-[140px] truncate rounded-md bg-slate-800 px-2 py-1 text-[10px] font-medium text-white shadow-md">
+                                {file.name}
+                              </span>
+                            </div>
+                          </foreignObject>
+                        </g>
+                      </g>
+                    );
+                  })}
+                </FolderIcon>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex items-center justify-between pt-3 border-t border-slate-50">
             {task.assignees && task.assignees.length > 0 ? (

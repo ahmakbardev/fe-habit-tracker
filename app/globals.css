@@ -62,6 +62,21 @@
   cursor: pointer !important;
 }
 
+/* Smaller type scale for the editor when embedded in a narrow host (e.g.
+   the Task detail drawer's note view) instead of the full Notes page. */
+.compact-note-editor .rte {
+  font-size: 0.875rem;
+}
+.compact-note-editor .rte h1 {
+  font-size: 1.5rem !important;
+}
+.compact-note-editor .rte h2 {
+  font-size: 1.25rem !important;
+}
+.compact-note-editor .rte h3 {
+  font-size: 1.0625rem !important;
+}
+
 /* ========================================
    Public note page — mirror editor styles
    ======================================== */
@@ -325,5 +340,80 @@ details.collapsible-section .content {
 /* Styled Jump Link Button inside Editor */
 .section-jump-btn {
   @apply inline-flex items-center px-2 py-0.5 my-1 mx-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 rounded-md text-sm font-bold transition-all hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 dark:hover:text-white cursor-pointer align-middle;
+}
+
+/* Task card's attachment-folder icon — slides up from below the moment a
+   task goes from no attachments to having one, instead of just appearing
+   instantly. Horizontal centering now lives on the wrapping
+   .folder-hover-wrap element (a static -translate-x-1/2), so this keyframe
+   only needs to own the vertical entrance — leaving the wrapper free to
+   also own a separate hover-triggered translateY without the two competing
+   for the same element's transform. */
+@keyframes folder-pop-in {
+  from {
+    transform: translateY(24px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.folder-pop-in {
+  animation: folder-pop-in 550ms cubic-bezier(0.625, 0.05, 0, 1) both;
+}
+
+/* Hovering the attachment thumbnail: the folder settles a little lower and
+   the peeking files fan out slightly, as if reacting to the cursor. Scoped
+   to .attach-hover-group (the thumbnail box) rather than the card's own
+   `group` class, so it only reacts when hovering the folder art itself. */
+.attach-hover-group .folder-hover-wrap {
+  transform: translateX(-50%) translateY(0);
+  transition: transform 300ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.attach-hover-group:hover .folder-hover-wrap {
+  transform: translateX(-50%) translateY(6px);
+}
+
+.attach-hover-group .file-hover-spread {
+  transform: translate(0px, 0px);
+  transition: transform 300ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.attach-hover-group:hover .file-hover-spread {
+  transform: translate(var(--file-spread-x, 0px), var(--file-spread-y, 0px));
+}
+
+/* Per-file name popover, rendered via <foreignObject> so it inherits the
+   same entrance/rotate/spread transforms as its file icon for free instead
+   of needing its position recomputed separately. */
+.file-tooltip {
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+  pointer-events: none;
+}
+.file-tooltip.file-tooltip-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* File-type icons peeking out of the folder — slide up from below with a
+   springy overshoot, staggered center → left → right, only starting once
+   the folder's own entrance (550ms) has finished. Rotation into each icon's
+   final tilt is folded into this same animation (0deg -> --file-rotate)
+   rather than being a separate static transform on FileTypeIcon, so a
+   tilted card doesn't sit pre-rotated for its whole delay + rise — it
+   settles into the tilt as it lands instead of appearing to drift in
+   diagonally. */
+@keyframes file-icon-pop-in {
+  from {
+    transform: translateY(40px) rotate(0deg);
+  }
+  to {
+    transform: translateY(0) rotate(var(--file-rotate, 0deg));
+  }
+}
+
+.file-icon-pop-in {
+  animation: file-icon-pop-in 650ms linear(0, 0.1529 2%, 0.3059 4%, 0.4568 6%, 0.6016 8%, 0.7311 10%, 0.8455 12%, 0.9386 14%, 1.0125 16%, 1.0679 18%, 1.1058 20%, 1.1309 22%, 1.1413 24%, 1.1425 26%, 1.1359 28%, 1.1242 30%, 1.1083 32%, 1.0909 34%, 1.0732 36%, 1.0559 38%, 1.0396 40%, 1.0254 42%, 1.0136 44%, 1.0036 46%, 0.9958 48%, 0.99 50%, 0.9867 52%, 0.9839 54%, 0.9833 56%, 0.9839 58%, 0.9849 60%, 0.9863 62%, 0.9879 64%, 0.9897 66%, 0.9914 68%, 0.9932 70%, 0.9949 72%, 0.9965 74%, 0.998 76%, 0.9994 78%, 1.0005 80%, 1.0014 82%, 1.0018 84%, 1.002 86%, 1.002 88%, 1.0019 90%, 1.0016 92%, 1.0012 94%, 1.0008 96%, 1.0003 98%, 1) both;
 }
 
