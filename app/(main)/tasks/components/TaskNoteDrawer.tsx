@@ -58,7 +58,8 @@ export default function TaskNoteDrawer({ noteId, onBack, onDeleted }: Props) {
   }, [noteId]);
 
   const handleUpdate = async (updated: NoteItem) => {
-    await NoteService.updateNote(updated.id, { title: updated.title, content: updated.content });
+    const htmlContent = typeof updated.content === "string" ? updated.content : "";
+    await NoteService.updateNote(updated.id, { title: updated.title, content: { html: htmlContent } });
     setNote(updated);
   };
 
