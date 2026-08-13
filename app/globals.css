@@ -398,18 +398,17 @@ details.collapsible-section .content {
 
 /* File-type icons peeking out of the folder — slide up from below with a
    springy overshoot, staggered center → left → right, only starting once
-   the folder's own entrance (550ms) has finished. Rotation into each icon's
-   final tilt is folded into this same animation (0deg -> --file-rotate)
-   rather than being a separate static transform on FileTypeIcon, so a
-   tilted card doesn't sit pre-rotated for its whole delay + rise — it
-   settles into the tilt as it lands instead of appearing to drift in
-   diagonally. */
+   the folder's own entrance (550ms) has finished. Only owns the vertical
+   rise: slot position and tilt live on the wrapping motion.g (framer-motion)
+   instead, so that removing an attachment can smoothly re-tween the
+   survivors into their new slot rather than snapping — this keyframe would
+   fight that same-property animation if it also carried position/rotation. */
 @keyframes file-icon-pop-in {
   from {
-    transform: translateY(40px) rotate(0deg);
+    transform: translateY(40px);
   }
   to {
-    transform: translateY(0) rotate(var(--file-rotate, 0deg));
+    transform: translateY(0);
   }
 }
 
