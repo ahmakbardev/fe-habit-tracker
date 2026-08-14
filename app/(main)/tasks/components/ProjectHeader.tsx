@@ -37,9 +37,12 @@ export default function ProjectHeader({
   const [ownerDraft, setOwnerDraft] = useState("");
 
   const totalTasks = projectData.tasks.length;
-  const completedTasks = projectData.tasks.filter(t =>
-    t.status.toLowerCase().includes("done") || t.status.toLowerCase().includes("complete")
-  ).length;
+  const doneColumnIds = new Set(
+    projectData.columns
+      .filter(c => c.title.toLowerCase().includes("done") || c.title.toLowerCase().includes("complete"))
+      .map(c => c.id)
+  );
+  const completedTasks = projectData.tasks.filter(t => doneColumnIds.has(t.status)).length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   const statusKey = (projectData.status || "planning") as keyof typeof statusConfig;
