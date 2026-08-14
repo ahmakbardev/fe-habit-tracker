@@ -237,6 +237,7 @@ export default function TaskDetailSidebar({
   const activities = task.activities || [];
   const assignees = task.assignees || [];
   const completedSubtasks = subtasks.filter((s) => s.completed).length;
+  const hasSubtasks = subtasks.length > 0;
   const pinnedComments = comments.filter((c) => c.pinned);
   const otherComments = comments.filter((c) => !c.pinned);
 
@@ -281,6 +282,7 @@ export default function TaskDetailSidebar({
   };
 
   const commitProgress = () => {
+    if (hasSubtasks) return;
     if (progressDraft !== (task.progress ?? 0)) {
       onUpdateTaskFields(task.id, { progress: progressDraft }).catch(console.error);
     }
@@ -694,27 +696,41 @@ export default function TaskDetailSidebar({
                   <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${progressDraft}%` }} />
                   </div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button className="text-xs font-bold text-slate-600 w-9 text-right hover:text-blue-600 transition">{progressDraft}%</button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-48 p-3" align="end">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Progress</p>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={progressDraft}
-                        onChange={(e) => setProgressDraft(Number(e.target.value))}
-                        onMouseUp={commitProgress}
-                        onTouchEnd={commitProgress}
-                        className="w-full accent-blue-600"
-                      />
-                      <p className="text-center text-xs font-bold text-slate-600 mt-1">{progressDraft}%</p>
-                    </PopoverContent>
-                  </Popover>
+                  {hasSubtasks ? (
+                    <span
+                      title={`${completedSubtasks}/${subtasks.length} subtasks completed`}
+                      className="text-xs font-bold text-slate-600 w-9 text-right"
+                    >
+                      {progressDraft}%
+                    </span>
+                  ) : (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="text-xs font-bold text-slate-600 w-9 text-right hover:text-blue-600 transition">{progressDraft}%</button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48 p-3" align="end">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Progress</p>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={progressDraft}
+                          onChange={(e) => setProgressDraft(Number(e.target.value))}
+                          onMouseUp={commitProgress}
+                          onTouchEnd={commitProgress}
+                          className="w-full accent-blue-600"
+                        />
+                        <p className="text-center text-xs font-bold text-slate-600 mt-1">{progressDraft}%</p>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </div>
               </div>
+              {hasSubtasks && (
+                <p className="text-[10px] text-slate-400 -mt-1 pb-2 text-right">
+                  Auto from {completedSubtasks}/{subtasks.length} subtasks
+                </p>
+              )}
 
               <div className="flex items-center justify-between py-3">
                 <div className="flex items-center gap-3 text-slate-400">
