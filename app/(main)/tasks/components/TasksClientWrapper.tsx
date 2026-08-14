@@ -8,9 +8,11 @@ import {
   List,
   Clock,
 } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import TasksSidebar from "./TasksSidebar";
+import Resizer from "../../notes/components/Resizer";
 import TasksKanbanBoard from "./TasksKanbanBoard";
 import TasksTable from "./TasksTable";
 import TasksTimeline from "./TasksTimeline";
@@ -65,6 +67,58 @@ export default function TasksClientWrapper() {
 
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [defaultTaskStatus, setDefaultTaskStatus] = useState<string | undefined>(undefined);
+
+  // --- Resizable & collapsible sidebar (same pattern as Notes) ---
+  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const MIN_SIDEBAR_WIDTH = 180;
+
+  const handleSidebarResize = useCallback((deltaX: number) => {
+    if (isSidebarCollapsed) {
+      if (deltaX > 2) {
+        setIsSidebarCollapsed(false);
+        setSidebarWidth(MIN_SIDEBAR_WIDTH);
+      }
+      return;
+    }
+    setSidebarWidth((prev) => Math.min(prev + deltaX, 400));
+  }, [isSidebarCollapsed]);
+
+  const handleSidebarResizeEnd = useCallback(() => {
+    setIsResizing(false);
+    if (isSidebarCollapsed) return;
+    setSidebarWidth((prev) => {
+      if (prev < 120) {
+        setIsSidebarCollapsed(true);
+        return 240;
+      }
+      return Math.max(prev, MIN_SIDEBAR_WIDTH);
+    });
+  }, [isSidebarCollapsed]);
+
+  const SidebarExpandButton = ({ onClick, top, title }: { onClick: () => void; top: string; title: string }) => (
+    <div
+      className="absolute z-[60] cursor-pointer group/expand"
+      style={{ left: "-1px", top }}
+      onClick={onClick}
+      title={title}
+    >
+      <svg width="24" height="60" viewBox="0 0 24 60" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-sm">
+        <path
+          d="M0 10C0 4.47715 4.47715 0 10 0L12 0C18.6274 0 24 5.37258 24 12V48C24 54.6274 18.6274 60 12 60L10 60C4.47715 60 0 55.5228 0 50V10Z"
+          fill="white"
+        />
+        <path
+          d="M0.5 10C0.5 4.7533 4.7533 0.5 10 0.5L12 0.5C18.3513 0.5 23.5 5.64873 23.5 12V48C23.5 54.3513 18.3513 59.5 12 59.5L10 59.5C4.7533 59.5 0.5 55.2467 0.5 50V10Z"
+          stroke="#E2E8F0"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center pl-1">
+        <ChevronRight size={16} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
+      </div>
+    </div>
+  );
 
   // --- Fetch workspaces (global, shared with Notes) ---
   useEffect(() => {
@@ -307,19 +361,43 @@ export default function TasksClientWrapper() {
   ];
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
-      {activeWorkspaceId && (
-        <TasksSidebar
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          activeProjectId={activeProjectId}
-          projects={projects}
-          onWorkspaceSelect={(id) => navigateTo({ workspace: id, project: "" })}
-          onProjectSelect={(id) => navigateTo({ project: id })}
-          onCreateProject={handleCreateProject}
-          onRenameProject={handleRenameProject}
-          onDeleteProject={handleDeleteProject}
+    <div className="flex h-full w-full overflow-hidden relative">
+      {activeWorkspaceId && isSidebarCollapsed && (
+        <SidebarExpandButton
+          onClick={() => setIsSidebarCollapsed(false)}
+          top="24px"
+          title="Expand Sidebar"
         />
+      )}
+
+      {activeWorkspaceId && (
+        <div
+          style={{ width: isSidebarCollapsed ? 0 : sidebarWidth }}
+          className={clsx(
+            "relative h-full flex-shrink-0 group/sidebar",
+            !isResizing && "transition-[width] duration-300 ease-in-out"
+          )}
+        >
+          <div className={isSidebarCollapsed ? "hidden" : "h-full w-full overflow-hidden"}>
+            <TasksSidebar
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId}
+              activeProjectId={activeProjectId}
+              projects={projects}
+              onWorkspaceSelect={(id) => navigateTo({ workspace: id, project: "" })}
+              onProjectSelect={(id) => navigateTo({ project: id })}
+              onCreateProject={handleCreateProject}
+              onRenameProject={handleRenameProject}
+              onDeleteProject={handleDeleteProject}
+            />
+          </div>
+          <Resizer
+            onResize={handleSidebarResize}
+            onResizeStart={() => setIsResizing(true)}
+            onResizeEnd={handleSidebarResizeEnd}
+            className={isSidebarCollapsed ? "left-0 !w-4 opacity-0 hover:opacity-100 transition-opacity" : ""}
+          />
+        </div>
       )}
 
       <main className="flex-1 h-full overflow-y-auto flex flex-col min-w-0">
