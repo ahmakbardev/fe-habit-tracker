@@ -12,6 +12,7 @@ export const markdownToHtml = (markdown: string): string => {
   let inCodeBlock = false;
   let codeBlockLines: string[] = [];
   let codeLanguage = '';
+  let inQuote = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -48,6 +49,7 @@ export const markdownToHtml = (markdown: string): string => {
 
     if (isTableLine) {
       if (inList) { result.push('</ul>'); inList = false; }
+      if (inQuote) { result.push('</blockquote>'); inQuote = false; }
 
       // Skip separator line (| :--- |)
       if (trimmedLine.match(/^\|?[:\-\s|]+\|?$/)) {
@@ -88,8 +90,26 @@ export const markdownToHtml = (markdown: string): string => {
     // 1. Horizontal Rule (---)
     if (/^---$/.test(trimmedLine)) {
       if (inList) { result.push('</ul>'); inList = false; }
+      if (inQuote) { result.push('</blockquote>'); inQuote = false; }
       result.push('<hr />');
       continue;
+    }
+
+    // 1b. Blockquote (>)
+    const quoteMatch = trimmedLine.match(/^>\s?(.*)$/);
+    if (quoteMatch) {
+      if (inList) { result.push('</ul>'); inList = false; }
+      const content = parseInlineMarkdown(quoteMatch[1]);
+      if (!inQuote) {
+        inQuote = true;
+        result.push(`<blockquote>${content}`);
+      } else {
+        result.push(`<br>${content}`);
+      }
+      continue;
+    } else if (inQuote) {
+      result.push('</blockquote>');
+      inQuote = false;
     }
 
     // 2. Headings
@@ -153,6 +173,10 @@ export const markdownToHtml = (markdown: string): string => {
 
   if (inList) {
     result.push('</ul>');
+  }
+
+  if (inQuote) {
+    result.push('</blockquote>');
   }
 
   if (inCodeBlock) {
@@ -219,6 +243,7 @@ export const isMarkdown = (text: string): boolean => {
     /^## /m,
     /^### /m,
     /^---$/m,
+    /^>\s?.+$/m,
     /^[\*-] /m,
     /^\d+\. /m,
     /\[(.*?)\]\((.*?)\)/,
