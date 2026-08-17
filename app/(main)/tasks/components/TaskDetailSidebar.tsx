@@ -28,6 +28,8 @@ import {
   Pin,
   PinOff,
   ArrowUpRight,
+  UploadCloud,
+  Loader2,
 } from "lucide-react";
 import clsx from "clsx";
 import { format, isValid } from "date-fns";
@@ -193,6 +195,11 @@ export default function TaskDetailSidebar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commentImageInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isAttachmentDragOver, setIsAttachmentDragOver] = useState(false);
+  const attachmentDragCounterRef = useRef(0);
+  const [pendingAttachmentUploads, setPendingAttachmentUploads] = useState<
+    { id: string; name: string; extension: string; file: File }[]
+  >([]);
 
   useEffect(() => {
     ProfileService.get().then(setMe).catch(() => {});
@@ -307,24 +314,63 @@ export default function TaskDetailSidebar({
     // read it lazily afterwards (e.g. via Array.from inside the loop).
     const selectedFiles = Array.from(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
-    for (const file of selectedFiles) {
+
+    // Show each file as a pending chip (icon detected from its extension)
+    // immediately, rather than waiting for the upload to finish.
+    const pending = selectedFiles.map((file) => ({
+      id: `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: file.name,
+      extension: (file.name.split(".").pop() || "FILE").toUpperCase(),
+      file,
+    }));
+    setPendingAttachmentUploads((prev) => [...prev, ...pending]);
+
+    for (const p of pending) {
       try {
-        const { url } = await NoteService.uploadMedia(file);
-        if (!url) continue;
-        await onAddAttachment(task.id, {
-          name: file.name,
-          url,
-          extension: (file.name.split(".").pop() || "FILE").toUpperCase(),
-          size: file.size,
-        });
+        const { url } = await NoteService.uploadMedia(p.file);
+        if (url) {
+          await onAddAttachment(task.id, {
+            name: p.name,
+            url,
+            extension: p.extension,
+            size: p.file.size,
+          });
+        }
       } catch (e) {
         console.error("Failed to upload attachment:", e);
+      } finally {
+        setPendingAttachmentUploads((prev) => prev.filter((x) => x.id !== p.id));
       }
     }
   };
 
   const removeAttachment = (id: string) => {
     onDeleteAttachment(id).catch(console.error);
+  };
+
+  // Drag-and-drop uses an enter/leave counter because dragleave also fires
+  // when the pointer moves over a child element, not just when it truly
+  // leaves the dropzone.
+  const handleAttachmentDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!e.dataTransfer.types.includes("Files")) return;
+    attachmentDragCounterRef.current += 1;
+    setIsAttachmentDragOver(true);
+  };
+  const handleAttachmentDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes("Files")) e.dataTransfer.dropEffect = "copy";
+  };
+  const handleAttachmentDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    attachmentDragCounterRef.current = Math.max(0, attachmentDragCounterRef.current - 1);
+    if (attachmentDragCounterRef.current === 0) setIsAttachmentDragOver(false);
+  };
+  const handleAttachmentDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    attachmentDragCounterRef.current = 0;
+    setIsAttachmentDragOver(false);
+    handleFilesSelected(e.dataTransfer.files);
   };
 
   const downloadAttachment = (attachment: TaskAttachment) => {
@@ -788,7 +834,13 @@ export default function TaskDetailSidebar({
             </div>
 
             {/* Attachments */}
-            <div className="mt-6">
+            <div
+              className="mt-6"
+              onDragEnter={handleAttachmentDragEnter}
+              onDragOver={handleAttachmentDragOver}
+              onDragLeave={handleAttachmentDragLeave}
+              onDrop={handleAttachmentDrop}
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-slate-700">
                   <Paperclip className="w-4 h-4 text-slate-400" />
@@ -800,44 +852,70 @@ export default function TaskDetailSidebar({
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-3">
-                {attachments.map((a) => {
-                  const { Icon, color, bg } = iconForExtension(a.extension);
-                  return (
-                    <div
-                      key={a.id}
-                      onClick={() => downloadAttachment(a)}
-                      className={clsx(
-                        "group/att relative flex items-center gap-2.5 border border-slate-200 rounded-xl px-3 py-2.5 w-[180px]",
-                        a.url ? "cursor-pointer hover:border-blue-300 hover:bg-blue-50/30" : "cursor-default"
-                      )}
-                    >
-                      <div className={clsx("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
-                        <Icon size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-700 truncate">{a.name}</p>
-                        <p className="text-[10px] text-slate-400">{a.extension} • {a.size}</p>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeAttachment(a.id);
-                        }}
-                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100 transition"
+              <div className="relative">
+                {isAttachmentDragOver && (
+                  <div className="absolute -inset-1.5 z-10 flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/90 backdrop-blur-[1px] pointer-events-none">
+                    <UploadCloud className="w-6 h-6 text-blue-500" />
+                    <p className="text-xs font-bold text-blue-600">Drop files here to attach</p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  {attachments.map((a) => {
+                    const { Icon, color, bg } = iconForExtension(a.extension);
+                    return (
+                      <div
+                        key={a.id}
+                        onClick={() => downloadAttachment(a)}
+                        className={clsx(
+                          "group/att relative flex items-center gap-2.5 border border-slate-200 rounded-xl px-3 py-2.5 w-[180px]",
+                          a.url ? "cursor-pointer hover:border-blue-300 hover:bg-blue-50/30" : "cursor-default"
+                        )}
                       >
-                        <X size={9} />
-                      </button>
-                    </div>
-                  );
-                })}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center justify-center w-[52px] h-[52px] border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 rounded-xl transition text-slate-400 hover:text-blue-500"
-                >
-                  <Plus size={18} />
-                </button>
-                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
+                        <div className={clsx("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
+                          <Icon size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-700 truncate">{a.name}</p>
+                          <p className="text-[10px] text-slate-400">{a.extension} • {a.size}</p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeAttachment(a.id);
+                          }}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center opacity-0 group-hover/att:opacity-100 transition"
+                        >
+                          <X size={9} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {pendingAttachmentUploads.map((p) => {
+                    const { Icon, color, bg } = iconForExtension(p.extension);
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-2.5 border border-dashed border-blue-200 bg-blue-50/40 rounded-xl px-3 py-2.5 w-[180px]"
+                      >
+                        <div className={clsx("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
+                          <Icon size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-700 truncate">{p.name}</p>
+                          <p className="text-[10px] text-blue-500">Uploading…</p>
+                        </div>
+                        <Loader2 size={14} className="animate-spin text-blue-400 shrink-0" />
+                      </div>
+                    );
+                  })}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center w-[52px] h-[52px] border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 rounded-xl transition text-slate-400 hover:text-blue-500"
+                  >
+                    <Plus size={18} />
+                  </button>
+                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
+                </div>
               </div>
             </div>
 
