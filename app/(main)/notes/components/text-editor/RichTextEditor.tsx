@@ -6,6 +6,7 @@ import ImageResizer from "./ImageResizer";
 import { toggleBlockType, toggleList, toggleOrderedList, insertHTML } from "./html-utils";
 import { Heading1, Link2, List, ListOrdered, Quote, Trash2, Layout, ChevronDown, FileText } from "lucide-react";
 import TableBubbleMenu from "./TableBubbleMenu";
+import TableColumnResizer from "./TableColumnResizer";
 import { handleTableTab } from "./table-utils";
 import { ensureCheckboxInLi } from "./html-utils";
 import { addColumn, removeColumn } from "./column-utils";
@@ -1203,6 +1204,8 @@ export default function RichTextEditor({ value, onChange }: Props) {
           </div>
         </div>
       )}
+
+      <TableColumnResizer editorRef={ref as React.RefObject<HTMLDivElement>} tableEl={activeTable} onResizeEnd={() => { if (ref.current) onChange(ref.current.innerHTML); }} />
 
       {/* SECTION MENU POPOVER */}
       {sectionMenu && createPortal(
