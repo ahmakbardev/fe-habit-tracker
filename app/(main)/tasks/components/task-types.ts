@@ -31,6 +31,7 @@ export type TaskAttachment = {
   extension: string;
   size: string;
   url?: string;
+  type: "file" | "url";
 };
 
 export type TaskComment = {
