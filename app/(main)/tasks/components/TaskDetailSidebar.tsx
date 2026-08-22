@@ -126,6 +126,18 @@ function formatDateTime(value?: string, pattern = "MMM d, yyyy"): string {
   return format(date, pattern);
 }
 
+// Only http/https may ever reach window.open() — a stored "javascript:" or
+// "data:" URL would execute in the app's own origin the moment anyone
+// (including a teammate on a shared task) clicks the attachment.
+function isSafeAttachmentUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function iconForExtension(ext: string) {
   const e = ext.toLowerCase();
   if (e === "pdf") return { Icon: FileText, color: "text-red-500", bg: "bg-red-50" };
@@ -382,7 +394,7 @@ export default function TaskDetailSidebar({
   };
 
   const downloadAttachment = (attachment: TaskAttachment) => {
-    if (!attachment.url) return;
+    if (!attachment.url || !isSafeAttachmentUrl(attachment.url)) return;
     window.open(attachment.url, "_blank", "noopener,noreferrer");
   };
 
@@ -393,6 +405,10 @@ export default function TaskDetailSidebar({
   const handleAddAttachmentByUrl = async () => {
     const url = attachUrlInput.trim();
     if (!url) return;
+    if (!isSafeAttachmentUrl(url)) {
+      alert("Please enter a valid http:// or https:// link.");
+      return;
+    }
 
     // Derive a display name/extension from the URL path itself so we don't
     // need to fetch the resource just to label it.
