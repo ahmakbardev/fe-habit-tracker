@@ -21,6 +21,8 @@ import {
   Image as ImageIcon,
   Archive,
   File as FileIcon,
+  Link2,
+  Check,
   MessageSquare,
   History,
   Square,
@@ -65,7 +67,7 @@ type TaskDetailSidebarProps = {
   onConvertSubtask: (subtaskId: string) => Promise<void>;
   onAddComment: (taskId: string, data: { body?: string; image_url?: string; image_name?: string }) => Promise<void>;
   onTogglePinComment: (commentId: string, pinned: boolean) => Promise<void>;
-  onAddAttachment: (taskId: string, data: { name: string; url: string; extension?: string; size?: number }) => Promise<void>;
+  onAddAttachment: (taskId: string, data: { name: string; url: string; type?: "file" | "url"; extension?: string; size?: number }) => Promise<void>;
   onDeleteAttachment: (attachmentId: string) => Promise<void>;
   onAddAssignee: (taskId: string, userId: number) => Promise<void>;
   onRemoveAssignee: (taskId: string, userId: number) => Promise<void>;
@@ -122,6 +124,18 @@ function formatDateTime(value?: string, pattern = "MMM d, yyyy"): string {
   const date = new Date(iso);
   if (!isValid(date)) return "—";
   return format(date, pattern);
+}
+
+// Only http/https may ever reach window.open() — a stored "javascript:" or
+// "data:" URL would execute in the app's own origin the moment anyone
+// (including a teammate on a shared task) clicks the attachment.
+function isSafeAttachmentUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function iconForExtension(ext: string) {
@@ -200,6 +214,9 @@ export default function TaskDetailSidebar({
   const [pendingAttachmentUploads, setPendingAttachmentUploads] = useState<
     { id: string; name: string; extension: string; file: File }[]
   >([]);
+  const [isAttachUrlMode, setIsAttachUrlMode] = useState(false);
+  const [attachUrlInput, setAttachUrlInput] = useState("");
+  const [isAddingAttachUrl, setIsAddingAttachUrl] = useState(false);
 
   useEffect(() => {
     ProfileService.get().then(setMe).catch(() => {});
@@ -240,6 +257,8 @@ export default function TaskDetailSidebar({
   const currentColumnTitle = columns.find((c) => c.id === task.status)?.title || task.status;
   const subtasks = task.subtasks || [];
   const attachments = task.attachments || [];
+  const fileAttachments = attachments.filter((a) => a.type !== "url");
+  const urlAttachments = attachments.filter((a) => a.type === "url");
   const comments = task.comments || [];
   const activities = task.activities || [];
   const assignees = task.assignees || [];
@@ -332,6 +351,7 @@ export default function TaskDetailSidebar({
           await onAddAttachment(task.id, {
             name: p.name,
             url,
+            type: "file",
             extension: p.extension,
             size: p.file.size,
           });
@@ -374,12 +394,40 @@ export default function TaskDetailSidebar({
   };
 
   const downloadAttachment = (attachment: TaskAttachment) => {
-    if (!attachment.url) return;
+    if (!attachment.url || !isSafeAttachmentUrl(attachment.url)) return;
     window.open(attachment.url, "_blank", "noopener,noreferrer");
   };
 
   const downloadAll = () => {
     attachments.filter((a) => a.url).forEach((a) => downloadAttachment(a));
+  };
+
+  const handleAddAttachmentByUrl = async () => {
+    const url = attachUrlInput.trim();
+    if (!url) return;
+    if (!isSafeAttachmentUrl(url)) {
+      alert("Please enter a valid http:// or https:// link.");
+      return;
+    }
+
+    // Derive a display name/extension from the URL path itself so we don't
+    // need to fetch the resource just to label it.
+    const cleanPath = url.split("?")[0].split("#")[0];
+    const segments = cleanPath.split("/").filter(Boolean);
+    const name = decodeURIComponent(segments[segments.length - 1] || url);
+    const extension = name.includes(".") ? name.split(".").pop() || "" : "";
+
+    setIsAddingAttachUrl(true);
+    try {
+      await onAddAttachment(task.id, { name, url, type: "url", extension: extension.toUpperCase() });
+      setAttachUrlInput("");
+      setIsAttachUrlMode(false);
+    } catch (e) {
+      console.error("Failed to add attachment via URL:", e);
+      alert("Failed to add attachment. Please check the URL and try again.");
+    } finally {
+      setIsAddingAttachUrl(false);
+    }
   };
 
   // --- Notes ---
@@ -859,15 +907,15 @@ export default function TaskDetailSidebar({
                     <p className="text-xs font-bold text-blue-600">Drop files here to attach</p>
                   </div>
                 )}
-                <div className="flex flex-wrap gap-3">
-                  {attachments.map((a) => {
+                <div className="grid grid-cols-2 gap-3">
+                  {fileAttachments.map((a) => {
                     const { Icon, color, bg } = iconForExtension(a.extension);
                     return (
                       <div
                         key={a.id}
                         onClick={() => downloadAttachment(a)}
                         className={clsx(
-                          "group/att relative flex items-center gap-2.5 border border-slate-200 rounded-xl px-3 py-2.5 w-[180px]",
+                          "group/att relative flex items-center gap-2.5 border border-slate-200 rounded-xl px-3 py-2.5 w-full",
                           a.url ? "cursor-pointer hover:border-blue-300 hover:bg-blue-50/30" : "cursor-default"
                         )}
                       >
@@ -895,7 +943,7 @@ export default function TaskDetailSidebar({
                     return (
                       <div
                         key={p.id}
-                        className="flex items-center gap-2.5 border border-dashed border-blue-200 bg-blue-50/40 rounded-xl px-3 py-2.5 w-[180px]"
+                        className="flex items-center gap-2.5 border border-dashed border-blue-200 bg-blue-50/40 rounded-xl px-3 py-2.5 w-full"
                       >
                         <div className={clsx("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
                           <Icon size={16} />
@@ -908,14 +956,89 @@ export default function TaskDetailSidebar({
                       </div>
                     );
                   })}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center justify-center w-[52px] h-[52px] border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 rounded-xl transition text-slate-400 hover:text-blue-500"
-                  >
-                    <Plus size={18} />
-                  </button>
+                  {isAttachUrlMode ? (
+                    <div className="flex items-center gap-1 w-full h-[52px] border-2 border-blue-300 bg-blue-50/30 rounded-xl px-2">
+                      <input
+                        autoFocus
+                        className="flex-1 min-w-0 bg-transparent outline-none text-xs placeholder:text-slate-400"
+                        placeholder="Paste file link..."
+                        value={attachUrlInput}
+                        onChange={(e) => setAttachUrlInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddAttachmentByUrl();
+                          if (e.key === "Escape") {
+                            setIsAttachUrlMode(false);
+                            setAttachUrlInput("");
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!attachUrlInput.trim()) setIsAttachUrlMode(false);
+                        }}
+                      />
+                      <button
+                        onClick={handleAddAttachmentByUrl}
+                        disabled={!attachUrlInput.trim() || isAddingAttachUrl}
+                        className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-blue-600 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >
+                        {isAddingAttachUrl ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="group/attach relative w-full h-[52px] border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 rounded-xl transition-colors text-slate-400 hover:text-blue-500 overflow-hidden">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Upload file"
+                        className="absolute inset-0 flex items-center justify-center group-hover/attach:opacity-0 transition-opacity"
+                      >
+                        <Plus size={18} />
+                      </button>
+                      <div className="absolute inset-0 flex divide-x divide-slate-200 opacity-0 group-hover/attach:opacity-100 transition-opacity delay-100">
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          title="Upload file"
+                          className="flex-1 flex items-center justify-center hover:bg-blue-100/60 hover:text-blue-600 transition-colors"
+                        >
+                          <UploadCloud size={15} />
+                        </button>
+                        <button
+                          onClick={() => setIsAttachUrlMode(true)}
+                          title="Add via URL"
+                          className="flex-1 flex items-center justify-center hover:bg-blue-100/60 hover:text-blue-600 transition-colors"
+                        >
+                          <Link2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
                 </div>
+
+                {urlAttachments.length > 0 && (
+                  <div className="mt-3 flex flex-col divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+                    {urlAttachments.map((a) => (
+                      <div
+                        key={a.id}
+                        onClick={() => downloadAttachment(a)}
+                        className="group/att relative flex items-center gap-2.5 px-3 py-2 hover:bg-blue-50/30 cursor-pointer transition-colors"
+                      >
+                        <Link2 size={14} className="text-blue-400 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-700 truncate">{a.name}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{a.url}</p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeAttachment(a.id);
+                          }}
+                          className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-slate-400 opacity-0 group-hover/att:opacity-100 hover:bg-slate-200 hover:text-slate-700 transition"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

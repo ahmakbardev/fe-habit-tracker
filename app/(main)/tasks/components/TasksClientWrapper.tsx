@@ -313,7 +313,7 @@ export default function TasksClientWrapper() {
     replaceTask(await TaskService.toggleCommentPin(commentId, pinned));
   }, [replaceTask]);
 
-  const handleAddAttachment = useCallback(async (taskId: string, data: { name: string; url: string; extension?: string; size?: number }) => {
+  const handleAddAttachment = useCallback(async (taskId: string, data: { name: string; url: string; type?: "file" | "url"; extension?: string; size?: number }) => {
     replaceTask(await TaskService.addAttachment(taskId, data));
   }, [replaceTask]);
 

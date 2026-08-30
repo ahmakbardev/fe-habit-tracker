@@ -66,6 +66,7 @@ export interface ApiTaskAttachment {
   task_id: string;
   name: string;
   url: string;
+  type: "file" | "url" | null;
   extension: string | null;
   size: number | null;
 }
@@ -157,6 +158,7 @@ export function mapApiAttachment(a: ApiTaskAttachment): TaskAttachment {
     extension: a.extension || "FILE",
     size: a.size ? formatFileSize(a.size) : "",
     url: a.url,
+    type: a.type === "url" ? "url" : "file",
   };
 }
 
@@ -323,7 +325,7 @@ export const TaskService = {
     return unwrap(response);
   },
 
-  addAttachment: async (taskId: string, data: { name: string; url: string; extension?: string; size?: number }): Promise<ApiTask> => {
+  addAttachment: async (taskId: string, data: { name: string; url: string; type?: "file" | "url"; extension?: string; size?: number }): Promise<ApiTask> => {
     const response = await api.post(`/tasks/${taskId}/attachments`, data);
     return unwrap(response);
   },

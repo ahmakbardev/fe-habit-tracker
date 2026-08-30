@@ -45,3 +45,14 @@ next-env.d.ts
 FE_AUTH_MIGRATION.md
 FE_PUBLIC_NOTES.md
 INTEGRATIONS.md
+
+# claude/agent local files
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.reference/
+.references/
+references/
+public/references/
+prompt.md

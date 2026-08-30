@@ -2,6 +2,64 @@
 
 import { moveCaretToStart } from "./caret-utils";
 
+export const MIN_COLUMN_WIDTH = 50;
+
+// Total lebar semua <col> di dalam colgroup, dipakai supaya tabel ikut
+// melebar/menyempit sesuai jumlah lebar kolomnya (bukan dipaksa 100%).
+const syncTableWidthFromColgroup = (table: HTMLTableElement, colgroup: HTMLTableColElement) => {
+  const total = Array.from(colgroup.children).reduce(
+    (sum, col) => sum + (parseFloat((col as HTMLElement).style.width) || 0),
+    0
+  );
+  if (total > 0) table.style.width = `${total}px`;
+};
+
+// Membuat <colgroup> dari lebar kolom header saat ini (sekali saja / lazy),
+// lalu mengunci table-layout ke "fixed" supaya lebar per kolom bisa
+// diatur independen (tidak lagi ikut auto menyesuaikan isi sel).
+export const ensureColgroup = (table: HTMLTableElement): HTMLTableColElement | null => {
+  const headerRow = table.querySelector("tr");
+  if (!headerRow) return null;
+
+  let colgroup = table.querySelector("colgroup");
+  const cells = Array.from(headerRow.children) as HTMLElement[];
+
+  if (!colgroup) {
+    colgroup = document.createElement("colgroup");
+    cells.forEach((cell) => {
+      const col = document.createElement("col");
+      col.style.width = `${Math.max(cell.offsetWidth, MIN_COLUMN_WIDTH)}px`;
+      colgroup!.appendChild(col);
+    });
+    table.insertBefore(colgroup, table.firstChild);
+  } else if (colgroup.children.length < cells.length) {
+    // Tabel lama yang barisnya sudah nambah kolom tapi colgroup belum sinkron
+    for (let i = colgroup.children.length; i < cells.length; i++) {
+      const col = document.createElement("col");
+      col.style.width = `${Math.max(cells[i]?.offsetWidth || 100, MIN_COLUMN_WIDTH)}px`;
+      colgroup.appendChild(col);
+    }
+  }
+
+  table.style.tableLayout = "fixed";
+  table.classList.remove("w-full");
+  syncTableWidthFromColgroup(table, colgroup);
+
+  return colgroup;
+};
+
+// Mengubah lebar satu kolom secara realtime (dipanggil saat drag berlangsung).
+export const resizeColumn = (table: HTMLTableElement, colIndex: number, newWidth: number) => {
+  const colgroup = table.querySelector("colgroup");
+  if (!colgroup) return;
+  const col = colgroup.children[colIndex] as HTMLElement | undefined;
+  if (!col) return;
+
+  const clamped = Math.max(MIN_COLUMN_WIDTH, newWidth);
+  col.style.width = `${clamped}px`;
+  syncTableWidthFromColgroup(table, colgroup);
+};
+
 export const addRow = (table: HTMLTableElement) => {
   const tbody = table.querySelector("tbody");
   if (!tbody) return;
@@ -24,13 +82,21 @@ export const addColumn = (table: HTMLTableElement) => {
   rows.forEach((row) => {
     const isHeader = row.parentElement?.tagName === "THEAD";
     const cell = document.createElement(isHeader ? "th" : "td");
-    
+
     cell.className = `border border-slate-300 p-2 min-w-[50px] ${
       isHeader ? "text-left bg-slate-50 font-semibold" : ""
     }`;
     cell.innerHTML = isHeader ? "New Header" : "<br>";
     row.appendChild(cell);
   });
+
+  const colgroup = table.querySelector("colgroup");
+  if (colgroup) {
+    const col = document.createElement("col");
+    col.style.width = `${MIN_COLUMN_WIDTH * 2}px`;
+    colgroup.appendChild(col);
+    syncTableWidthFromColgroup(table, colgroup);
+  }
 };
 
 // --- [BARU] DELETE ROW ---
@@ -56,6 +122,12 @@ export const deleteColumn = (table: HTMLTableElement) => {
     const lastCell = row.lastElementChild;
     if (lastCell) lastCell.remove();
   });
+
+  const colgroup = table.querySelector("colgroup");
+  if (colgroup && colgroup.lastElementChild) {
+    colgroup.lastElementChild.remove();
+    syncTableWidthFromColgroup(table, colgroup);
+  }
 };
 
 export const removeTable = (table: HTMLTableElement) => {
