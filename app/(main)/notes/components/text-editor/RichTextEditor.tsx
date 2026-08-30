@@ -3,8 +3,8 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import Toolbar from "./Toolbar";
 import ImageResizer from "./ImageResizer";
-import { toggleBlockType, toggleList, toggleOrderedList, insertHTML } from "./html-utils";
-import { Heading1, Link2, List, ListOrdered, Quote, Trash2, Layout, ChevronDown, FileText } from "lucide-react";
+import { toggleBlockType, toggleList, toggleOrderedList, insertHTML, hasForeignFormatting, cleanForeignHtml, sanitizeHtmlForPaste } from "./html-utils";
+import { Heading1, Link2, List, ListOrdered, Quote, Trash2, Layout, ChevronDown, FileText, Wand2 } from "lucide-react";
 import TableBubbleMenu from "./TableBubbleMenu";
 import TableColumnResizer from "./TableColumnResizer";
 import { handleTableTab } from "./table-utils";
@@ -866,6 +866,27 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   const [smartPasteText, setSmartPasteText] = useState<string | null>(null);
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
+  const [formatPasteData, setFormatPasteData] = useState<{ html: string; text: string } | null>(null);
+
+  const applyFormatPaste = (type: "clean" | "keep" | "plain") => {
+    if (!formatPasteData) return;
+
+    ref.current?.focus();
+    restoreCaretManually();
+
+    if (type === "clean") {
+      insertHTML(cleanForeignHtml(formatPasteData.html));
+    } else if (type === "keep") {
+      insertHTML(sanitizeHtmlForPaste(formatPasteData.html));
+    } else {
+      insertHTML(
+        formatPasteData.text.split(/\r?\n/).map((l) => `<div>${l ? escapeHtml(l) : "<br>"}</div>`).join("")
+      );
+    }
+
+    if (ref.current) onChange(ref.current.innerHTML);
+    setFormatPasteData(null);
+  };
 
   const applyMarkdownPaste = (type: "convert" | "plain") => {
     if (!markdownPasteText) return;
@@ -967,6 +988,15 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const text = e.clipboardData.getData("text/plain");
+    const html = e.clipboardData.getData("text/html");
+
+    // --- FOREIGN FORMATTING DETECTION (pasted from another site/app with its own fonts/colors) ---
+    if (html && hasForeignFormatting(html)) {
+      e.preventDefault();
+      saveCaretManually();
+      setFormatPasteData({ html, text });
+      return;
+    }
 
     // --- DETECT SECTION LINK ---
     try {
@@ -1128,6 +1158,80 @@ export default function RichTextEditor({ value, onChange }: Props) {
                 <div className="bg-slate-50 p-4 flex justify-center border-t border-slate-100">
                   <button
                     onClick={() => setMarkdownPasteText(null)}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* FOREIGN FORMATTING PASTE MODAL */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {formatPasteData && (
+            <div key="format-paste-overlay" className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 pointer-events-auto">
+              <motion.div
+                key="format-paste-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setFormatPasteData(null)}
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              />
+              <motion.div
+                key="format-paste-modal"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+              >
+                <div className="p-6">
+                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4 text-blue-600">
+                    <Wand2 size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Different Formatting Detected</h3>
+                  <p className="text-sm text-slate-500 mb-6">
+                    This text was copied with its own fonts and colors. Match it to your note&apos;s style?
+                  </p>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => applyFormatPaste("clean")}
+                      className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-blue-100 hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                    >
+                      <div className="text-left">
+                        <div className="font-bold text-slate-900 group-hover:text-blue-700">Clean &amp; Match My Style</div>
+                        <div className="text-xs text-slate-500">Removes foreign fonts/colors, keeps structure</div>
+                      </div>
+                      <Wand2 className="w-5 h-5 text-blue-500" />
+                    </button>
+
+                    <button
+                      onClick={() => applyFormatPaste("keep")}
+                      className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-slate-100 hover:border-slate-300 hover:bg-slate-50 transition-all group"
+                    >
+                      <div className="text-left">
+                        <div className="font-bold text-slate-900">Keep Original Formatting</div>
+                        <div className="text-xs text-slate-500">Paste exactly as copied</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => applyFormatPaste("plain")}
+                      className="w-full p-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                    >
+                      Paste as plain text
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-4 flex justify-center border-t border-slate-100">
+                  <button
+                    onClick={() => setFormatPasteData(null)}
                     className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest"
                   >
                     Cancel

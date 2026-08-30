@@ -270,6 +270,148 @@ export const toggleCheckList = () => {
   }
 };
 
+// --- FOREIGN FORMATTING DETECTION & CLEANUP ---
+// Used to detect content pasted from another site/app (e.g. Google Docs, Word, a blog)
+// that carries its own fonts/colors, so we can offer to reformat it to match our own style.
+
+const FOREIGN_STYLE_PATTERN = /font-family\s*:|color\s*:\s*(rgb|#)|background-color\s*:|font-size\s*:/i;
+const WORD_ARTIFACT_PATTERN = /mso-|<o:p|<w:|class="?Mso/i;
+
+export const hasForeignFormatting = (html: string): boolean => {
+  if (!html || !html.trim()) return false;
+  if (/<font[\s>]/i.test(html)) return true;
+  if (WORD_ARTIFACT_PATTERN.test(html)) return true;
+  if (FOREIGN_STYLE_PATTERN.test(html)) return true;
+  return false;
+};
+
+// Tags whose semantic meaning we keep, mapped to the attributes we allow through.
+const ALLOWED_TAGS: Record<string, string[]> = {
+  p: [], div: [], br: [], hr: [],
+  h1: [], h2: [], h3: [],
+  ul: [], ol: [], li: [],
+  blockquote: [], pre: [], code: [],
+  strong: [], b: [], em: [], i: [], u: [], s: [], strike: [],
+  a: ["href"],
+  table: [], thead: [], tbody: [], tr: [],
+  td: ["colspan", "rowspan"], th: ["colspan", "rowspan"],
+  img: ["src", "alt"],
+};
+
+// Headings beyond h3 aren't supported by the editor's own commands, so fold them down.
+const HEADING_DOWNGRADE: Record<string, string> = { h4: "h3", h5: "h3", h6: "h3" };
+
+// Tags that must never survive into the editor: script/executable containers,
+// embeddable documents, and interactive form controls we don't support.
+const DANGEROUS_TAGS = new Set([
+  "script", "style", "meta", "link", "title", "head", "xml",
+  "iframe", "object", "embed", "applet", "form", "input", "button",
+  "textarea", "select", "svg", "math", "base", "noscript", "template",
+]);
+
+// Google Docs/Word wrap plain text in <b style="font-weight:normal">, <i style="font-style:normal">,
+// etc. as layout artifacts, not real emphasis - treat those as wrappers, not formatting.
+const isFakeEmphasis = (tag: string, style: string): boolean => {
+  if ((tag === "b" || tag === "strong") && /font-weight\s*:\s*(normal|400|inherit)/i.test(style)) return true;
+  if ((tag === "i" || tag === "em") && /font-style\s*:\s*(normal|inherit)/i.test(style)) return true;
+  if (tag === "u" && /text-decoration(-line)?\s*:\s*none/i.test(style)) return true;
+  return false;
+};
+
+// Strips known CSS-based XSS vectors (old-IE expression()/behavior/-moz-binding, javascript: in
+// url()) from a style attribute value. Returns "" if the whole value looks unsafe.
+const sanitizeStyleValue = (style: string): string => {
+  if (!style) return "";
+  if (/javascript:|expression\s*\(|-moz-binding|behavior\s*:|@import/i.test(style)) return "";
+  return style;
+};
+
+const sanitizeUrlAttr = (value: string): string | null => {
+  if (/^\s*(javascript|data):/i.test(value)) return null;
+  return value;
+};
+
+type SanitizeOpts = { preserveStyle?: boolean };
+
+// Recursively rebuilds a pasted DOM subtree using only an allowlist of tags/attributes.
+// - preserveStyle=false ("clean" mode): unknown/decorative wrappers (span, font, div-with-style)
+//   are unwrapped, keeping just their text - used to strip foreign fonts/colors entirely.
+// - preserveStyle=true ("keep original formatting" mode): the same allowlist and dangerous-tag
+//   removal applies (so no scripts/handlers/iframes survive), but sanitized style/class are kept
+//   on every element - including via a plain <span> wrapper for otherwise-unrecognized tags - so
+//   the pasted look is preserved instead of the content being unwrapped.
+const sanitizeNode = (node: Node, opts: SanitizeOpts = {}): Node[] => {
+  if (node.nodeType === Node.TEXT_NODE) return [node.cloneNode(true)];
+  if (node.nodeType !== Node.ELEMENT_NODE) return []; // drop comments, etc.
+
+  const el = node as HTMLElement;
+  const originalTag = el.tagName.toLowerCase();
+  if (DANGEROUS_TAGS.has(originalTag)) return [];
+
+  const children: Node[] = [];
+  el.childNodes.forEach((child) => children.push(...sanitizeNode(child, opts)));
+
+  if (isFakeEmphasis(originalTag, el.getAttribute("style") || "")) return children;
+
+  const tag = HEADING_DOWNGRADE[originalTag] || originalTag;
+  const allowedAttrs = ALLOWED_TAGS[tag];
+
+  if (!allowedAttrs) {
+    // Unrecognized/purely-decorative tag (span, font, etc.)
+    if (!opts.preserveStyle) return children; // unwrap, keep only the text/children
+    const style = sanitizeStyleValue(el.getAttribute("style") || "");
+    const cls = el.getAttribute("class");
+    if (!style && !cls) return children; // nothing worth a wrapper for - unwrap
+    const span = document.createElement("span");
+    if (style) span.setAttribute("style", style);
+    if (cls) span.setAttribute("class", cls);
+    children.forEach((child) => span.appendChild(child));
+    return [span];
+  }
+
+  const clean = document.createElement(tag);
+  allowedAttrs.forEach((attr) => {
+    const value = el.getAttribute(attr);
+    if (!value) return;
+    if (attr === "href" || attr === "src") {
+      const safe = sanitizeUrlAttr(value);
+      if (safe === null) return;
+      clean.setAttribute(attr, safe);
+      return;
+    }
+    clean.setAttribute(attr, value);
+  });
+  if (opts.preserveStyle) {
+    const style = sanitizeStyleValue(el.getAttribute("style") || "");
+    if (style) clean.setAttribute("style", style);
+    const cls = el.getAttribute("class");
+    if (cls) clean.setAttribute("class", cls);
+  }
+  children.forEach((child) => clean.appendChild(child));
+  return [clean];
+};
+
+const runSanitizer = (html: string, opts: SanitizeOpts): string => {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const container = document.createElement("div");
+  template.content.childNodes.forEach((child) => {
+    sanitizeNode(child, opts).forEach((n) => container.appendChild(n));
+  });
+
+  return container.innerHTML;
+};
+
+// "Clean & Match My Style": strips all foreign fonts/colors, keeps only structure.
+export const cleanForeignHtml = (html: string): string => runSanitizer(html, { preserveStyle: false });
+
+// "Keep Original Formatting": preserves the pasted look (fonts/colors/classes) while still
+// removing every executable tag/attribute (scripts, iframes, event handlers, javascript: URIs,
+// dangerous CSS). Always route clipboard HTML through this before inserting it - never insert
+// raw clipboard HTML directly.
+export const sanitizeHtmlForPaste = (html: string): string => runSanitizer(html, { preserveStyle: true });
+
 export const ensureCheckboxInLi = (li: HTMLLIElement | Element) => {
   const firstChild = li.firstElementChild;
   const hasCheckbox =
