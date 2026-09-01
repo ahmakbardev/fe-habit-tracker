@@ -6,6 +6,7 @@ import {
   TaskItem,
   KanbanColumn,
   ProjectData,
+  QuickBoardTask,
   Subtask,
   TaskAttachment,
   TaskComment,
@@ -109,6 +110,25 @@ export interface ApiTask {
   notes: ApiTaskNote[];
 }
 
+export interface ApiActiveTask {
+  id: string;
+  title: string;
+  description: string | null;
+  priority: "low" | "medium" | "high";
+  start_date: string | null;
+  due_date: string | null;
+  tags: string[] | null;
+  assignees: ApiUser[];
+  column_id: string;
+  column_title: string;
+  project_id: string;
+  project_name: string;
+  project_icon_name: string | null;
+  workspace_id: string;
+  workspace_name: string | null;
+  workspace_icon_name: string | null;
+}
+
 const unwrap = <T>(response: { data: unknown }): T => {
   const res = response.data;
   if (res && typeof res === "object" && "data" in res) {
@@ -204,6 +224,27 @@ export function mapApiColumn(c: ApiTaskColumn): KanbanColumn {
   return { id: c.id, title: c.title };
 }
 
+export function mapApiActiveTask(t: ApiActiveTask): QuickBoardTask {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? undefined,
+    priority: t.priority,
+    startDate: toLocalDateTimeString(t.start_date),
+    dueDate: toLocalDateTimeString(t.due_date),
+    tags: t.tags ?? [],
+    assignees: (t.assignees || []).map(mapApiUser),
+    columnId: t.column_id,
+    columnTitle: t.column_title,
+    projectId: t.project_id,
+    projectName: t.project_name,
+    projectIconName: t.project_icon_name ?? undefined,
+    workspaceId: t.workspace_id,
+    workspaceName: t.workspace_name ?? "Unknown",
+    workspaceIconName: t.workspace_icon_name ?? undefined,
+  };
+}
+
 export function mapApiProject(p: ApiTaskProject): ProjectData {
   const columns = (p.columns || []).map(mapApiColumn);
   const tasks = (p.columns || []).flatMap((c) => (c.tasks || []).map(mapApiTask));
@@ -227,6 +268,13 @@ function formatFileSize(bytes: number): string {
 export const TaskService = {
   getProjects: async (workspaceId: string): Promise<ApiTaskProject[]> => {
     const response = await api.get(`/tasks?workspace_id=${workspaceId}&t=${Date.now()}`);
+    return unwrap(response);
+  },
+
+  // Flat list of not-yet-done tasks across every workspace/project owned by
+  // the user — powers the "Active Tasks" quick board on the Tasks index.
+  getActiveOverview: async (): Promise<ApiActiveTask[]> => {
+    const response = await api.get(`/tasks/overview/active?t=${Date.now()}`);
     return unwrap(response);
   },
 

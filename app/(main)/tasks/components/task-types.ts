@@ -89,3 +89,25 @@ export type ProjectData = {
   };
 };
 
+// Flat, cross-project task used by the "Active Tasks" quick board shown on
+// the Tasks index — each task carries its own project/workspace so the
+// board can flag where it lives and jump straight there when clicked.
+export type QuickBoardTask = {
+  id: string;
+  title: string;
+  description?: string;
+  priority: "low" | "medium" | "high";
+  startDate?: string;
+  dueDate?: string;
+  tags?: string[];
+  assignees?: Assignee[];
+  columnId: string;
+  columnTitle: string;
+  projectId: string;
+  projectName: string;
+  projectIconName?: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceIconName?: string;
+};
+
