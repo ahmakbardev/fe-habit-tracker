@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
 import { TaskItem, TaskStatus, KanbanColumn } from "./task-types";
 import clsx from "clsx";
 import CustomSelect from "./ui/CustomSelect";
@@ -72,7 +73,8 @@ export default function AddTaskModal({
       return;
     }
 
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
     setIsSubmitting(true);
     try {
       await onAdd({
@@ -80,7 +82,9 @@ export default function AddTaskModal({
         description,
         status,
         priority,
-        startDate: startDate ? startDate.replace("T", " ") : undefined,
+        // Kalau start date tidak diatur, task langsung mulai saat dibuat.
+        // Due date sengaja tidak diberi default — biarkan kosong kalau memang tidak diisi.
+        startDate: startDate ? startDate.replace("T", " ") : format(nowDate, "yyyy-MM-dd HH:mm"),
         dueDate: dueDate ? dueDate.replace("T", " ") : undefined,
         tags: [],
         createdAt: now,
