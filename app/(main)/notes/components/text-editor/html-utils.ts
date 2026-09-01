@@ -320,14 +320,21 @@ const isFakeEmphasis = (tag: string, style: string): boolean => {
 
 // Strips known CSS-based XSS vectors (old-IE expression()/behavior/-moz-binding, javascript: in
 // url()) from a style attribute value. Returns "" if the whole value looks unsafe.
+// Browsers strip ASCII tab/newline/CR characters from anywhere in a URL (and leading C0
+// controls/space) before parsing its scheme - e.g. "jav\tascript:alert(1)" is read as
+// "javascript:alert(1)". A filter that only matches the literal scheme string can be bypassed
+// this way, so normalize the same way the browser does before checking it.
+const normalizeUrlLike = (value: string): string =>
+  value.replace(/[\t\n\r]/g, "").replace(/^[\x00-\x20]+/, "");
+
 const sanitizeStyleValue = (style: string): string => {
   if (!style) return "";
-  if (/javascript:|expression\s*\(|-moz-binding|behavior\s*:|@import/i.test(style)) return "";
+  if (/javascript:|expression\s*\(|-moz-binding|behavior\s*:|@import/i.test(normalizeUrlLike(style))) return "";
   return style;
 };
 
 const sanitizeUrlAttr = (value: string): string | null => {
-  if (/^\s*(javascript|data):/i.test(value)) return null;
+  if (/^(javascript|data|vbscript):/i.test(normalizeUrlLike(value))) return null;
   return value;
 };
 

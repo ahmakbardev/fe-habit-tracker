@@ -7,6 +7,7 @@ import {
   Columns,
   List,
   Clock,
+  Zap,
 } from "lucide-react";
 import { ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -16,18 +17,20 @@ import Resizer from "../../notes/components/Resizer";
 import TasksKanbanBoard from "./TasksKanbanBoard";
 import TasksTable from "./TasksTable";
 import TasksTimeline from "./TasksTimeline";
+import TasksQuickBoard from "./TasksQuickBoard";
 import ProjectHeader from "./ProjectHeader";
-import { TaskItem, KanbanColumn, ProjectData } from "./task-types";
+import { TaskItem, KanbanColumn, ProjectData, QuickBoardTask } from "./task-types";
 import WorkspaceDashboard from "../../notes/components/WorkspaceDashboard";
 import TaskProjectDashboard, { TaskProjectSummary } from "./TaskProjectDashboard";
 import TaskDetailSidebar from "./TaskDetailSidebar";
 import AddTaskModal from "./AddTaskModal";
 import { NoteService } from "../../notes/services/note-service";
 import { getIconByName, getIconName } from "../../notes/utils/icon-utils";
-import { TaskService, ApiTask, mapApiTask, mapApiProject } from "../services/task-service";
+import { TaskService, ApiTask, mapApiTask, mapApiProject, mapApiActiveTask } from "../services/task-service";
 import clsx from "clsx";
 
 type ViewMode = "kanban" | "table" | "timeline";
+type IndexTab = "active" | "workspaces";
 type WorkspaceLink = { id: string; name: string; icon: LucideIcon };
 
 export default function TasksClientWrapper() {
@@ -37,8 +40,9 @@ export default function TasksClientWrapper() {
 
   const activeWorkspaceId = searchParams.get("workspace");
   const activeProjectId = searchParams.get("project") || "";
+  const pendingTaskId = searchParams.get("task");
 
-  const navigateTo = useCallback((params: { workspace?: string | null; project?: string | null }) => {
+  const navigateTo = useCallback((params: { workspace?: string | null; project?: string | null; task?: string | null }) => {
     const newParams = new URLSearchParams(searchParams.toString());
     if (params.workspace !== undefined) {
       if (params.workspace) newParams.set("workspace", params.workspace);
@@ -48,11 +52,19 @@ export default function TasksClientWrapper() {
       if (params.project) newParams.set("project", params.project);
       else newParams.delete("project");
     }
+    if (params.task !== undefined) {
+      if (params.task) newParams.set("task", params.task);
+      else newParams.delete("task");
+    }
     router.push(`${pathname}?${newParams.toString()}`);
   }, [pathname, router, searchParams]);
 
   const [workspaces, setWorkspaces] = useState<WorkspaceLink[]>([]);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
+
+  const [indexTab, setIndexTab] = useState<IndexTab>("active");
+  const [activeTasks, setActiveTasks] = useState<QuickBoardTask[]>([]);
+  const [loadingActiveTasks, setLoadingActiveTasks] = useState(true);
 
   const [projects, setProjects] = useState<TaskProjectSummary[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
@@ -134,6 +146,23 @@ export default function TasksClientWrapper() {
     return () => { mounted = false; };
   }, []);
 
+  // --- Fetch the cross-project "Active Tasks" quick board, shown on the
+  // index before a workspace is picked. Refetched each time the user lands
+  // back on the index so it doesn't go stale. ---
+  useEffect(() => {
+    if (activeWorkspaceId) return;
+    let mounted = true;
+    setLoadingActiveTasks(true);
+    TaskService.getActiveOverview()
+      .then((data) => {
+        if (!mounted) return;
+        setActiveTasks(data.map(mapApiActiveTask));
+      })
+      .catch(() => mounted && setActiveTasks([]))
+      .finally(() => mounted && setLoadingActiveTasks(false));
+    return () => { mounted = false; };
+  }, [activeWorkspaceId]);
+
   // --- Fetch projects for the active workspace ---
   useEffect(() => {
     if (!activeWorkspaceId) {
@@ -173,6 +202,23 @@ export default function TasksClientWrapper() {
   useEffect(() => {
     refetchProjectData();
   }, [refetchProjectData]);
+
+  // --- Auto-open a task's drawer once its project has loaded — used by the
+  // "Active Tasks" quick board so clicking a task jumps straight into its
+  // project AND opens the detail panel in one step, instead of landing on
+  // the board and requiring a second click. ---
+  useEffect(() => {
+    if (!pendingTaskId || !projectData) return;
+    const match = projectData.tasks.find((t) => t.id === pendingTaskId);
+    if (match) {
+      setSelectedTask(match);
+      setIsRightSidebarOpen(true);
+    }
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.delete("task");
+    router.replace(`${pathname}?${newParams.toString()}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTaskId, projectData]);
 
   // --- Replace a single task in local state after any mutation ---
   const replaceTask = useCallback((apiTask: ApiTask) => {
@@ -236,6 +282,13 @@ export default function TasksClientWrapper() {
     setSelectedTask(task);
     setIsRightSidebarOpen(true);
   };
+
+  // Jump from the index "Active Tasks" board straight into the task's own
+  // project + open its drawer (handled by the pendingTaskId effect above,
+  // once that project's data has loaded).
+  const handleQuickBoardTaskClick = useCallback((task: QuickBoardTask) => {
+    navigateTo({ workspace: task.workspaceId, project: task.projectId, task: task.id });
+  }, [navigateTo]);
 
   const handleOpenAddTask = (status?: string) => {
     setDefaultTaskStatus(status);
@@ -409,14 +462,48 @@ export default function TasksClientWrapper() {
             </div>
           </div>
         ) : !activeWorkspaceId ? (
-          <WorkspaceDashboard
-            workspaces={workspaces}
-            onSelect={(id) => navigateTo({ workspace: id, project: "" })}
-            onRenameWorkspace={handleRenameWorkspace}
-            onDeleteWorkspace={handleDeleteWorkspace}
-            onCreateWorkspace={handleCreateWorkspace}
-            subtitle="Choose a workspace to view your projects."
-          />
+          <div className="flex-1 h-full flex flex-col overflow-hidden">
+            <div className="px-6 md:px-10 pt-6 md:pt-8 bg-slate-50">
+              <div className="max-w-7xl mx-auto flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-xl w-fit shadow-sm">
+                <button
+                  onClick={() => setIndexTab("active")}
+                  className={clsx(
+                    "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    indexTab === "active" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Active Tasks
+                </button>
+                <button
+                  onClick={() => setIndexTab("workspaces")}
+                  className={clsx(
+                    "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    indexTab === "workspaces" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  Workspaces
+                </button>
+              </div>
+            </div>
+            {indexTab === "active" ? (
+              <TasksQuickBoard
+                tasks={activeTasks}
+                loading={loadingActiveTasks}
+                onTaskClick={handleQuickBoardTaskClick}
+              />
+            ) : (
+              <WorkspaceDashboard
+                workspaces={workspaces}
+                onSelect={(id) => navigateTo({ workspace: id, project: "" })}
+                onRenameWorkspace={handleRenameWorkspace}
+                onDeleteWorkspace={handleDeleteWorkspace}
+                onCreateWorkspace={handleCreateWorkspace}
+                subtitle="Choose a workspace to view your projects."
+              />
+            )}
+          </div>
         ) : activeProjectId === "" ? (
           loadingProjects ? (
             <div className="flex-1 flex items-center justify-center bg-slate-50/30 animate-pulse">

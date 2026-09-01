@@ -299,8 +299,10 @@ export default function TasksTimeline({ columns, tasks, onTaskClick }: TasksTime
               <div className="relative">
                 {tasks.map((task: TaskItem) => {
                   const start = parseTaskDate(task.startDate);
-                  const end = parseTaskDate(task.dueDate);
-                  
+                  // Task tanpa due date dianggap berdurasi 1 hari dari start,
+                  // supaya tetap muncul sebagai bar pendek dan tidak melebar tak terbatas.
+                  const end = parseTaskDate(task.dueDate) ?? (start ? endOfDay(start) : null);
+
                   if (!start || !end) return <div key={task.id} className="h-14 border-b border-slate-50" />;
 
                   // Visibility Logic
